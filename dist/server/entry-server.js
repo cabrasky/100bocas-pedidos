@@ -176,6 +176,26 @@ const CATEGORY_ICONS = {
   bebidas: "fa-wine-bottle",
   extras: "fa-plus-circle"
 };
+let _activeMenu = null;
+let _activeMenuLookup = null;
+function setActiveMenu(menu) {
+  _activeMenu = menu;
+  if (menu) {
+    _activeMenuLookup = {};
+    for (const cat of menu.categories) {
+      _activeMenuLookup[cat.key] = {};
+      for (const item of cat.items) {
+        const key = item.code || item.name;
+        _activeMenuLookup[cat.key][key] = item;
+      }
+    }
+  } else {
+    _activeMenuLookup = null;
+  }
+}
+function getActiveMenu() {
+  return _activeMenu;
+}
 const MENU = {
   casa: { price: "1€", items: [
     { code: "01", name: "Jamón Gran Reserva y aceite de oliva" },
@@ -328,10 +348,36 @@ function getKey(item) {
   return item.code || item.name;
 }
 function getCatLabel(k) {
+  if (_activeMenu) {
+    for (const cat of _activeMenu.categories) {
+      if (cat.key === k) return cat.label;
+    }
+  }
   return CATEGORY_LABELS[k] || k;
+}
+function getCatIcon(k) {
+  if (_activeMenu) {
+    for (const cat of _activeMenu.categories) {
+      if (cat.key === k) return cat.icon;
+    }
+  }
+  return CATEGORY_ICONS[k] || "fa-list";
 }
 function getPrice(catKey, item) {
   var _a, _b;
+  if (_activeMenuLookup) {
+    const catItems = _activeMenuLookup[catKey];
+    if (catItems) {
+      const lookupKey = item.code || item.name;
+      const apiItem = catItems[lookupKey];
+      if (apiItem == null ? void 0 : apiItem.price) return apiItem.price;
+    }
+    for (const cat2 of _activeMenu.categories) {
+      if (cat2.key === catKey && cat2.items.length > 0) {
+        break;
+      }
+    }
+  }
   if (item.price) return item.price;
   const cat = MENU[catKey];
   if (cat == null ? void 0 : cat.price) return cat.price;
@@ -363,6 +409,17 @@ function getPrice(catKey, item) {
   return "";
 }
 function findItem(key) {
+  if (_activeMenuLookup) {
+    for (const [catKey, items] of Object.entries(_activeMenuLookup)) {
+      const apiItem = items[key];
+      if (apiItem) {
+        return {
+          category: catKey,
+          item: { code: apiItem.code || void 0, name: apiItem.name, ingredients: apiItem.ingredients, price: apiItem.price }
+        };
+      }
+    }
+  }
   for (const [ck, cat] of Object.entries(MENU)) {
     if (!cat.items) continue;
     for (const item of cat.items) {
@@ -380,6 +437,9 @@ async function api(method, path, body) {
   if (body) opts.body = JSON.stringify(body);
   const r = await fetch(`${API_BASE}${path}`, opts);
   return r.json();
+}
+function fetchActiveMenu() {
+  return api("GET", "/api/menu/active");
 }
 function createSession() {
   return api("POST", "/api/session");
@@ -705,6 +765,10 @@ function AdminPanel({ onClose }) {
           " IPs Bloqueadas ",
           bans && bans.total > 0 && /* @__PURE__ */ jsx("span", { className: "ban-badge", children: bans.total })
         ] }),
+        /* @__PURE__ */ jsxs("button", { className: `admin-tab ${tab === "menus" ? "active" : ""}`, onClick: () => setTab("menus"), children: [
+          /* @__PURE__ */ jsx("i", { className: "fas fa-book" }),
+          " Cartas"
+        ] }),
         /* @__PURE__ */ jsx("button", { className: "admin-tab admin-tab-logout", onClick: handleLogout, title: "Cerrar sesión", children: /* @__PURE__ */ jsx("i", { className: "fas fa-right-from-bracket" }) })
       ] }),
       /* @__PURE__ */ jsxs("div", { className: "admin-body", children: [
@@ -929,10 +993,179 @@ function AdminPanel({ onClose }) {
               /* @__PURE__ */ jsx("button", { className: "ban-unban-btn", onClick: () => handleUnban(b.ip), title: "Desbloquear IP", children: /* @__PURE__ */ jsx("i", { className: "fas fa-unlock" }) })
             ] }, b.ip)) })
           ] })
-        ] })
+        ] }),
+        tab === "menus" && /* @__PURE__ */ jsx(AdminMenuManager, { authHeaders, base })
       ] })
     ] })
   ] }) });
+}
+function AdminMenuManager({ authHeaders, base: base2 }) {
+  const [menus, setMenus] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [msg, setMsg] = useState("");
+  const [msgType, setMsgType] = useState("ok");
+  const [newName, setNewName] = useState("");
+  const [newSlug, setNewSlug] = useState("");
+  const [newDesc, setNewDesc] = useState("");
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await fetch(`${base2}/api/admin/menus`, { headers: authHeaders() });
+      if (r.status === 401 || r.status === 403) return;
+      setMenus(await r.json());
+    } catch {
+      setMsg("Error al cargar");
+      setMsgType("err");
+    }
+    setLoading(false);
+  }, [base2, authHeaders]);
+  useEffect(() => {
+    load();
+  }, [load]);
+  const handleCreate = async () => {
+    if (!newName.trim() || !newSlug.trim()) return;
+    setMsg("");
+    try {
+      const r = await fetch(`${base2}/api/admin/menus`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ name: newName.trim(), slug: newSlug.trim(), description: newDesc.trim() })
+      });
+      const data = await r.json();
+      if (data.error) {
+        setMsg(data.error);
+        setMsgType("err");
+      } else {
+        setMsg(`✅ Carta "${newName}" creada`);
+        setMsgType("ok");
+        setNewName("");
+        setNewSlug("");
+        setNewDesc("");
+        load();
+      }
+    } catch {
+      setMsg("Error al crear");
+      setMsgType("err");
+    }
+  };
+  const handleActivate = async (id) => {
+    try {
+      const r = await fetch(`${base2}/api/admin/menus/${id}/activate`, { method: "POST", headers: authHeaders() });
+      const data = await r.json();
+      if (data.error) {
+        setMsg(data.error);
+        setMsgType("err");
+      } else {
+        setMsg("✅ Carta activada");
+        setMsgType("ok");
+        load();
+      }
+    } catch {
+      setMsg("Error");
+      setMsgType("err");
+    }
+  };
+  const handleDelete = async (id, name) => {
+    if (!window.confirm(`¿Eliminar la carta "${name}"?`)) return;
+    try {
+      const r = await fetch(`${base2}/api/admin/menus/${id}`, { method: "DELETE", headers: authHeaders() });
+      const data = await r.json();
+      if (data.error) {
+        setMsg(data.error);
+        setMsgType("err");
+      } else {
+        setMsg(`✅ "${name}" eliminada`);
+        setMsgType("ok");
+        load();
+      }
+    } catch {
+      setMsg("Error");
+      setMsgType("err");
+    }
+  };
+  return /* @__PURE__ */ jsxs("div", { className: "admin-menus", children: [
+    /* @__PURE__ */ jsxs("div", { className: "admin-section", children: [
+      /* @__PURE__ */ jsxs("h3", { children: [
+        /* @__PURE__ */ jsx("i", { className: "fas fa-plus-circle" }),
+        " Nueva carta"
+      ] }),
+      /* @__PURE__ */ jsxs("div", { className: "menu-create-form", children: [
+        /* @__PURE__ */ jsx(
+          "input",
+          {
+            type: "text",
+            className: "menu-input",
+            placeholder: "Nombre (ej: Euromanía 1€)",
+            value: newName,
+            onChange: (e) => setNewName(e.target.value)
+          }
+        ),
+        /* @__PURE__ */ jsx(
+          "input",
+          {
+            type: "text",
+            className: "menu-input",
+            placeholder: "Slug (ej: euromania)",
+            value: newSlug,
+            onChange: (e) => setNewSlug(e.target.value.toLowerCase().replace(/\s+/g, "-"))
+          }
+        ),
+        /* @__PURE__ */ jsx(
+          "input",
+          {
+            type: "text",
+            className: "menu-input",
+            placeholder: "Descripción (opcional)",
+            value: newDesc,
+            onChange: (e) => setNewDesc(e.target.value)
+          }
+        ),
+        /* @__PURE__ */ jsxs("button", { className: "menu-create-btn", onClick: handleCreate, disabled: !newName.trim() || !newSlug.trim(), children: [
+          /* @__PURE__ */ jsx("i", { className: "fas fa-plus" }),
+          " Crear carta"
+        ] })
+      ] }),
+      msg && /* @__PURE__ */ jsx("div", { className: `ban-msg ${msgType === "ok" ? "ban-msg-ok" : "ban-msg-err"}`, children: msg })
+    ] }),
+    /* @__PURE__ */ jsxs("div", { className: "admin-section", children: [
+      /* @__PURE__ */ jsxs("h3", { children: [
+        /* @__PURE__ */ jsx("i", { className: "fas fa-list" }),
+        " Cartas configuradas"
+      ] }),
+      loading ? /* @__PURE__ */ jsxs("div", { className: "admin-loading", children: [
+        /* @__PURE__ */ jsx("i", { className: "fas fa-spinner fa-spin" }),
+        " Cargando..."
+      ] }) : menus.length === 0 ? /* @__PURE__ */ jsxs("p", { className: "ban-empty", children: [
+        /* @__PURE__ */ jsx("i", { className: "fas fa-book" }),
+        " No hay cartas configuradas"
+      ] }) : /* @__PURE__ */ jsx("div", { className: "menu-list", children: menus.map((m) => /* @__PURE__ */ jsxs("div", { className: `menu-card ${m.is_active ? "active-menu" : ""}`, children: [
+        /* @__PURE__ */ jsxs("div", { className: "menu-card-left", children: [
+          /* @__PURE__ */ jsxs("div", { className: "menu-card-name", children: [
+            m.is_active && /* @__PURE__ */ jsx("span", { className: "menu-active-badge", children: /* @__PURE__ */ jsx("i", { className: "fas fa-check-circle" }) }),
+            /* @__PURE__ */ jsx("strong", { children: m.name }),
+            /* @__PURE__ */ jsx("span", { className: "menu-slug", children: /* @__PURE__ */ jsx("code", { children: m.slug }) })
+          ] }),
+          m.description && /* @__PURE__ */ jsx("div", { className: "menu-card-desc", children: m.description }),
+          /* @__PURE__ */ jsxs("div", { className: "menu-card-meta", children: [
+            "Creada ",
+            m.created_at ? new Date(m.created_at).toLocaleDateString("es-ES") : "—"
+          ] })
+        ] }),
+        /* @__PURE__ */ jsxs("div", { className: "menu-card-right", children: [
+          !m.is_active && /* @__PURE__ */ jsxs("button", { className: "menu-activate-btn", onClick: () => handleActivate(m.id), title: "Activar esta carta", children: [
+            /* @__PURE__ */ jsx("i", { className: "fas fa-check" }),
+            " Activar"
+          ] }),
+          m.is_active && /* @__PURE__ */ jsx("span", { className: "menu-active-label", children: "Activa" }),
+          /* @__PURE__ */ jsx("button", { className: "menu-delete-btn", onClick: () => handleDelete(m.id, m.name), title: "Eliminar carta", children: /* @__PURE__ */ jsx("i", { className: "fas fa-trash-can" }) })
+        ] })
+      ] }, m.id)) })
+    ] }),
+    /* @__PURE__ */ jsxs("div", { className: "admin-note", style: { marginTop: 12 }, children: [
+      /* @__PURE__ */ jsx("i", { className: "fas fa-info-circle" }),
+      "Al activar una carta, se desactiva automáticamente la anterior. Los cambios se reflejan al instante en la app."
+    ] })
+  ] });
 }
 function LoginScreen({ onLogin }) {
   const [name, setName] = useState("");
@@ -1041,7 +1274,7 @@ function LoginScreen({ onLogin }) {
     showAdmin && /* @__PURE__ */ jsx(AdminPanel, { onClose: () => setShowAdmin(false) })
   ] });
 }
-function Header({ myName, sessionCode, onCopyCode, onShowQR, onLeave, onShowPrivacy, sessionUrl }) {
+function Header({ myName, sessionCode, onCopyCode, onShowQR, onLeave, onShowPrivacy, sessionUrl, menuName }) {
   const handleShareWhatsApp = () => {
     const msg = encodeURIComponent(
       `🍔 *Euromania — Pedido Colaborativo*
@@ -1062,7 +1295,13 @@ Añade tus montaditos y coordinamos el pedido 🎉`
       ] }),
       /* @__PURE__ */ jsxs("div", { className: "subtitle", children: [
         "Conectado como ",
-        myName
+        myName,
+        menuName ? /* @__PURE__ */ jsxs("span", { className: "menu-badge", children: [
+          " · ",
+          /* @__PURE__ */ jsx("i", { className: "fas fa-tag" }),
+          " ",
+          menuName
+        ] }) : ""
       ] })
     ] }),
     /* @__PURE__ */ jsxs("div", { className: "header-right", children: [
@@ -1124,7 +1363,11 @@ function PersonBar({ persons, myName, currentPersonIdx, onSelectPerson, onDelete
 }
 function MenuGrid({ persons, currentPersonIdx, activeCat, searchTerm, onSetCategory, onSearchChange, onToggleItem }) {
   const person = persons[currentPersonIdx] || persons[0] || null;
-  const cats = useMemo(() => Object.keys(MENU), []);
+  const cats = useMemo(() => {
+    const active = getActiveMenu();
+    if (active) return active.categories.map((c) => c.key);
+    return Object.keys(MENU);
+  }, []);
   const filteredCats = useMemo(() => {
     return activeCat === "all" ? cats : [activeCat];
   }, [activeCat, cats]);
@@ -1144,7 +1387,7 @@ function MenuGrid({ persons, currentPersonIdx, activeCat, searchTerm, onSetCateg
           className: `cat-btn ${activeCat === k ? "active" : ""}`,
           onClick: () => onSetCategory(k),
           children: [
-            /* @__PURE__ */ jsx("i", { className: `fas ${CATEGORY_ICONS[k] || "fa-list"}` }),
+            /* @__PURE__ */ jsx("i", { className: `fas ${getCatIcon(k)}` }),
             " ",
             getCatLabel(k)
           ]
@@ -1507,6 +1750,7 @@ function ToastContainer({ toasts }) {
 }
 let toastId = 0;
 function OrderApp() {
+  var _a;
   const [sessionCode, setSessionCode] = useState("");
   const [myName, setMyName] = useState("");
   const [persons, setPersons] = useState([]);
@@ -1605,6 +1849,11 @@ function OrderApp() {
     }
   }, [enterSession, loadSession]);
   useEffect(() => {
+    fetchActiveMenu().then((menu) => {
+      setActiveMenu(menu);
+    }).catch(() => {
+      setActiveMenu(null);
+    });
     const saved = getSessionCookie();
     const params = new URLSearchParams(window.location.search);
     const sessionFromUrl = params.get("session");
@@ -1628,8 +1877,8 @@ function OrderApp() {
       setLoading(false);
     }
     return () => {
-      var _a;
-      (_a = wsRef.current) == null ? void 0 : _a.close();
+      var _a2;
+      (_a2 = wsRef.current) == null ? void 0 : _a2.close();
     };
   }, []);
   const toggleItem = useCallback(async (catKey, itemKey) => {
@@ -1708,8 +1957,8 @@ function OrderApp() {
     setCurrentPersonIdx(idx);
   }, []);
   const handleLeave = useCallback(() => {
-    var _a;
-    (_a = wsRef.current) == null ? void 0 : _a.close();
+    var _a2;
+    (_a2 = wsRef.current) == null ? void 0 : _a2.close();
     wsRef.current = null;
     clearSessionCookie();
     setSessionCode("");
@@ -1847,6 +2096,7 @@ function OrderApp() {
         myName,
         sessionCode,
         sessionUrl,
+        menuName: (_a = getActiveMenu()) == null ? void 0 : _a.name,
         onCopyCode: copyCode,
         onShowQR: () => setQrOpen(true),
         onShowPrivacy: () => setPrivacyOpen(true),

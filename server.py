@@ -889,6 +889,321 @@ async def websocket_endpoint(ws: WebSocket, code: str):
             del _ws_by_ip[ws_ip]
 
 
+# ── Menu API ───────────────────────────────────────
+async def _get_active_menu(conn) -> dict | None:
+    """Fetch the active menu config with categories and items."""
+    row = await conn.fetchrow(
+        "SELECT id, name, slug, description FROM menu_configs WHERE is_active = true LIMIT 1"
+    )
+    if not row:
+        return None
+    cats = await conn.fetch(
+        "SELECT id, key, label, icon, sort_order FROM menu_categories WHERE menu_id = $1 ORDER BY sort_order",
+        row["id"],
+    )
+    categories = []
+    for c in cats:
+        items = await conn.fetch(
+            "SELECT id, code, name, ingredients, price, sort_order FROM menu_items WHERE category_id = $1 ORDER BY sort_order",
+            c["id"],
+        )
+        categories.append({
+            "id": c["id"],
+            "key": c["key"],
+            "label": c["label"],
+            "icon": c["icon"],
+            "items": [{"id": i["id"], "code": i["code"] or "", "name": i["name"],
+                       "ingredients": i["ingredients"] or "", "price": i["price"] or ""}
+                      for i in items],
+        })
+    return {
+        "id": row["id"],
+        "name": row["name"],
+        "slug": row["slug"],
+        "description": row["description"],
+        "categories": categories,
+    }
+
+
+@app.get("/api/menu/active")
+async def get_active_menu():
+    """Public: return the currently active menu config."""
+    assert pool
+    async with pool.acquire() as conn:
+        menu = await _get_active_menu(conn)
+    if not menu:
+        return JSONResponse({"error": "No active menu configured"}, status_code=404)
+    return menu
+
+
+# ── Admin: Menu management ─────────────────────────
+@app.get("/api/admin/menus")
+async def admin_list_menus(request: Request):
+    """List all menu configs (admin only)."""
+    auth_error = _admin_required(request)
+    if auth_error:
+        return auth_error
+    assert pool
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT id, name, slug, description, is_active, created_at FROM menu_configs ORDER BY id"
+        )
+    return [{
+        "id": r["id"], "name": r["name"], "slug": r["slug"],
+        "description": r["description"], "is_active": r["is_active"],
+        "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+    } for r in rows]
+
+
+@app.post("/api/admin/menus")
+async def admin_create_menu(request: Request):
+    """Create a new menu config."""
+    auth_error = _admin_required(request)
+    if auth_error:
+        return auth_error
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Invalid JSON"}, status_code=400)
+    name = body.get("name", "").strip()
+    slug = body.get("slug", "").strip().lower().replace(" ", "-")
+    desc = body.get("description", "").strip()
+    if not name or not slug:
+        return JSONResponse({"error": "name and slug required"}, status_code=400)
+    assert pool
+    async with pool.acquire() as conn:
+        try:
+            menu_id = await conn.fetchval(
+                "INSERT INTO menu_configs (name, slug, description) VALUES ($1, $2, $3) RETURNING id",
+                name, slug, desc,
+            )
+        except asyncpg.UniqueViolationError:
+            return JSONResponse({"error": f"Slug '{slug}' already exists"}, status_code=409)
+    return {"id": menu_id, "name": name, "slug": slug}
+
+
+@app.put("/api/admin/menus/{menu_id}")
+async def admin_update_menu(request: Request, menu_id: int):
+    """Update a menu config."""
+    auth_error = _admin_required(request)
+    if auth_error:
+        return auth_error
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Invalid JSON"}, status_code=400)
+    assert pool
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT id FROM menu_configs WHERE id = $1", menu_id)
+        if not row:
+            return JSONResponse({"error": "Menu not found"}, status_code=404)
+        sets = []
+        vals = []
+        i = 1
+        for field in ("name", "slug", "description"):
+            if field in body:
+                sets.append(f"{field} = ${i}")
+                vals.append(body[field].strip())
+                i += 1
+        if not sets:
+            return JSONResponse({"error": "No fields to update"}, status_code=400)
+        sets.append("updated_at = now()")
+        vals.append(menu_id)
+        await conn.execute(
+            f"UPDATE menu_configs SET {', '.join(sets)} WHERE id = ${i}",
+            *vals,
+        )
+    return {"status": "ok"}
+
+
+@app.delete("/api/admin/menus/{menu_id}")
+async def admin_delete_menu(request: Request, menu_id: int):
+    """Delete a menu config."""
+    auth_error = _admin_required(request)
+    if auth_error:
+        return auth_error
+    assert pool
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT id, is_active FROM menu_configs WHERE id = $1", menu_id)
+        if not row:
+            return JSONResponse({"error": "Menu not found"}, status_code=404)
+        if row["is_active"]:
+            return JSONResponse({"error": "Cannot delete active menu. Switch to another first."}, status_code=400)
+        await conn.execute("DELETE FROM menu_configs WHERE id = $1", menu_id)
+    return {"status": "ok"}
+
+
+@app.post("/api/admin/menus/{menu_id}/activate")
+async def admin_activate_menu(request: Request, menu_id: int):
+    """Set a menu config as active (deactivates others)."""
+    auth_error = _admin_required(request)
+    if auth_error:
+        return auth_error
+    assert pool
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT id FROM menu_configs WHERE id = $1", menu_id)
+        if not row:
+            return JSONResponse({"error": "Menu not found"}, status_code=404)
+        await conn.execute("UPDATE menu_configs SET is_active = (id = $1)", menu_id)
+    return {"status": "ok", "menu_id": menu_id}
+
+
+# ── Admin: Category CRUD ───────────────────────────
+@app.post("/api/admin/menus/{menu_id}/categories")
+async def admin_create_category(request: Request, menu_id: int):
+    """Add a category to a menu."""
+    auth_error = _admin_required(request)
+    if auth_error:
+        return auth_error
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Invalid JSON"}, status_code=400)
+    key = body.get("key", "").strip()
+    label = body.get("label", "").strip()
+    icon = body.get("icon", "fa-list")
+    if not key or not label:
+        return JSONResponse({"error": "key and label required"}, status_code=400)
+    assert pool
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT id FROM menu_configs WHERE id = $1", menu_id)
+        if not row:
+            return JSONResponse({"error": "Menu not found"}, status_code=404)
+        try:
+            cat_id = await conn.fetchval(
+                "INSERT INTO menu_categories (menu_id, key, label, icon) VALUES ($1, $2, $3, $4) RETURNING id",
+                menu_id, key, label, icon,
+            )
+        except asyncpg.UniqueViolationError:
+            return JSONResponse({"error": f"Category '{key}' already exists in this menu"}, status_code=409)
+    return {"id": cat_id, "key": key, "label": label}
+
+
+@app.put("/api/admin/categories/{cat_id}")
+async def admin_update_category(request: Request, cat_id: int):
+    """Update a category."""
+    auth_error = _admin_required(request)
+    if auth_error:
+        return auth_error
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Invalid JSON"}, status_code=400)
+    assert pool
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT id FROM menu_categories WHERE id = $1", cat_id)
+        if not row:
+            return JSONResponse({"error": "Category not found"}, status_code=404)
+        sets = []
+        vals = []
+        i = 1
+        for field in ("key", "label", "icon", "sort_order"):
+            if field in body:
+                sets.append(f"{field} = ${i}")
+                vals.append(body[field])
+                i += 1
+        if not sets:
+            return JSONResponse({"error": "No fields to update"}, status_code=400)
+        vals.append(cat_id)
+        await conn.execute(
+            f"UPDATE menu_categories SET {', '.join(sets)} WHERE id = ${i}",
+            *vals,
+        )
+    return {"status": "ok"}
+
+
+@app.delete("/api/admin/categories/{cat_id}")
+async def admin_delete_category(request: Request, cat_id: int):
+    """Delete a category (cascades to items)."""
+    auth_error = _admin_required(request)
+    if auth_error:
+        return auth_error
+    assert pool
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT id FROM menu_categories WHERE id = $1", cat_id)
+        if not row:
+            return JSONResponse({"error": "Category not found"}, status_code=404)
+        await conn.execute("DELETE FROM menu_categories WHERE id = $1", cat_id)
+    return {"status": "ok"}
+
+
+# ── Admin: Item CRUD ───────────────────────────────
+@app.post("/api/admin/categories/{cat_id}/items")
+async def admin_create_item(request: Request, cat_id: int):
+    """Add an item to a category."""
+    auth_error = _admin_required(request)
+    if auth_error:
+        return auth_error
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Invalid JSON"}, status_code=400)
+    name = body.get("name", "").strip()
+    code = body.get("code", "")
+    price = body.get("price", "")
+    ingredients = body.get("ingredients", "")
+    if not name:
+        return JSONResponse({"error": "name required"}, status_code=400)
+    assert pool
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT id FROM menu_categories WHERE id = $1", cat_id)
+        if not row:
+            return JSONResponse({"error": "Category not found"}, status_code=404)
+        item_id = await conn.fetchval(
+            "INSERT INTO menu_items (category_id, code, name, ingredients, price) VALUES ($1, $2, $3, $4, $5) RETURNING id",
+            cat_id, code, name, ingredients, price,
+        )
+    return {"id": item_id, "name": name, "code": code}
+
+
+@app.put("/api/admin/items/{item_id}")
+async def admin_update_item(request: Request, item_id: int):
+    """Update a menu item."""
+    auth_error = _admin_required(request)
+    if auth_error:
+        return auth_error
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Invalid JSON"}, status_code=400)
+    assert pool
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT id FROM menu_items WHERE id = $1", item_id)
+        if not row:
+            return JSONResponse({"error": "Item not found"}, status_code=404)
+        sets = []
+        vals = []
+        i = 1
+        for field in ("code", "name", "ingredients", "price", "sort_order"):
+            if field in body:
+                sets.append(f"{field} = ${i}")
+                vals.append(body[field])
+                i += 1
+        if not sets:
+            return JSONResponse({"error": "No fields to update"}, status_code=400)
+        vals.append(item_id)
+        await conn.execute(
+            f"UPDATE menu_items SET {', '.join(sets)} WHERE id = ${i}",
+            *vals,
+        )
+    return {"status": "ok"}
+
+
+@app.delete("/api/admin/items/{item_id}")
+async def admin_delete_item(request: Request, item_id: int):
+    """Delete a menu item."""
+    auth_error = _admin_required(request)
+    if auth_error:
+        return auth_error
+    assert pool
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT id FROM menu_items WHERE id = $1", item_id)
+        if not row:
+            return JSONResponse({"error": "Item not found"}, status_code=404)
+        await conn.execute("DELETE FROM menu_items WHERE id = $1", item_id)
+    return {"status": "ok"}
+
+
 # ── SEO / static helpers ──────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 LANDING_PATH = os.path.join(BASE_DIR, "frontend", "public", "landing.html")

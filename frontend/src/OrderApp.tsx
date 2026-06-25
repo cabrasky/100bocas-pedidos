@@ -2,12 +2,13 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Person, Toast, WsMessage, MenuItem, MENU, getKey, getCatLabel,
   CATEGORY_ICONS, CATEGORY_LABELS, parsePrice, getPrice, findItem,
-  getCats,
+  getCats, setActiveMenu, getActiveMenu,
 } from './types';
 import {
   createSession, joinSession, addPerson, removePerson,
   upsertItem, removeItem, clearPerson,
   setSessionCookie, getSessionCookie, clearSessionCookie,
+  fetchActiveMenu,
 } from './api';
 import { SessionWebSocket } from './websocket';
 import LoginScreen from './components/LoginScreen';
@@ -141,6 +142,14 @@ function OrderApp() {
 
   // Auto-reconnect on mount
   useEffect(() => {
+    // Load active menu from API
+    fetchActiveMenu().then(menu => {
+      setActiveMenu(menu);
+    }).catch(() => {
+      // Fallback to hardcoded MENU
+      setActiveMenu(null);
+    });
+
     const saved = getSessionCookie();
     const params = new URLSearchParams(window.location.search);
     const sessionFromUrl = params.get('session');
@@ -398,6 +407,7 @@ function OrderApp() {
         myName={myName}
         sessionCode={sessionCode}
         sessionUrl={sessionUrl}
+        menuName={getActiveMenu()?.name}
         onCopyCode={copyCode}
         onShowQR={() => setQrOpen(true)}
         onShowPrivacy={() => setPrivacyOpen(true)}

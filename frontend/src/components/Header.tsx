@@ -6,9 +6,10 @@ interface Props {
   onLeave: () => void;
   onShowPrivacy: () => void;
   sessionUrl: string;
+  menuName?: string;
 }
 
-function Header({ myName, sessionCode, onCopyCode, onShowQR, onLeave, onShowPrivacy, sessionUrl }: Props) {
+function Header({ myName, sessionCode, onCopyCode, onShowQR, onLeave, onShowPrivacy, sessionUrl, menuName }: Props) {
   const handleShareWhatsApp = () => {
     const msg = encodeURIComponent(
       `🍔 *Euromania — Pedido Colaborativo*\n\nCódigo: *${sessionCode}*\n\nÚnete aquí: ${sessionUrl}\n\nAñade tus montaditos y coordinamos el pedido 🎉`
@@ -20,7 +21,7 @@ function Header({ myName, sessionCode, onCopyCode, onShowQR, onLeave, onShowPriv
     <header>
       <div className="header-left">
         <h1><i className="fas fa-utensils"></i>Euromania</h1>
-        <div className="subtitle">Conectado como {myName}</div>
+        <div className="subtitle">Conectado como {myName}{menuName ? <span className="menu-badge"> · <i className="fas fa-tag"></i> {menuName}</span> : ''}</div>
       </div>
       <div className="header-right">
         <div className="code-badge" onClick={onCopyCode} title="Copiar código">

@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Person, MENU, getKey, getCatLabel, CATEGORY_ICONS, getPrice } from '../types';
+import { Person, MENU, getKey, getCatLabel, CATEGORY_ICONS, getPrice, getCatIcon, getActiveMenu } from '../types';
 
 interface Props {
   persons: Person[];
@@ -14,7 +14,11 @@ interface Props {
 function MenuGrid({ persons, currentPersonIdx, activeCat, searchTerm, onSetCategory, onSearchChange, onToggleItem }: Props) {
   const person = persons[currentPersonIdx] || persons[0] || null;
 
-  const cats = useMemo(() => Object.keys(MENU), []);
+  const cats = useMemo(() => {
+    const active = getActiveMenu();
+    if (active) return active.categories.map(c => c.key);
+    return Object.keys(MENU);
+  }, []);
 
   const filteredCats = useMemo(() => {
     return activeCat === 'all' ? cats : [activeCat];
@@ -35,7 +39,7 @@ function MenuGrid({ persons, currentPersonIdx, activeCat, searchTerm, onSetCateg
             className={`cat-btn ${activeCat === k ? 'active' : ''}`}
             onClick={() => onSetCategory(k)}
           >
-            <i className={`fas ${CATEGORY_ICONS[k] || 'fa-list'}`}></i> {getCatLabel(k)}
+            <i className={`fas ${getCatIcon(k)}`}></i> {getCatLabel(k)}
           </button>
         ))}
       </div>

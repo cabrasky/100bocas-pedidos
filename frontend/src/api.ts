@@ -12,6 +12,22 @@ export async function api<T>(method: string, path: string, body?: unknown): Prom
   return r.json();
 }
 
+export interface ApiMenuCategory {
+  id: number; key: string; label: string; icon: string;
+  items: ApiMenuItem[];
+}
+export interface ApiMenuItem {
+  id: number; code: string; name: string; ingredients: string; price: string;
+}
+export interface ApiActiveMenu {
+  id: number; name: string; slug: string; description: string;
+  categories: ApiMenuCategory[];
+}
+
+export function fetchActiveMenu(): Promise<ApiActiveMenu> {
+  return api('GET', '/api/menu/active');
+}
+
 export function createSession(): Promise<{ code: string }> {
   return api('POST', '/api/session');
 }

@@ -88,6 +88,50 @@ export const CATEGORY_ICONS: Record<string, string> = {
   extras: 'fa-plus-circle',
 };
 
+// ── Dynamic menu support ─────────────────────────
+// The app can load an active menu config from the API.
+// If loaded, these replace the static MENU for prices/labels.
+// Falls back to the hardcoded constants below.
+
+export interface ApiMenuCategoryData {
+  id: number; key: string; label: string; icon: string;
+  items: ApiMenuItemData[];
+}
+export interface ApiMenuItemData {
+  id: number; code: string; name: string; ingredients: string; price: string;
+}
+export interface ApiMenuData {
+  id: number; name: string; slug: string; description: string;
+  categories: ApiMenuCategoryData[];
+}
+
+let _activeMenu: ApiMenuData | null = null;
+let _activeMenuLookup: Record<string, Record<string, ApiMenuItemData>> | null = null; // categoryKey -> itemKey -> item
+
+export function setActiveMenu(menu: ApiMenuData | null) {
+  _activeMenu = menu;
+  if (menu) {
+    _activeMenuLookup = {};
+    for (const cat of menu.categories) {
+      _activeMenuLookup[cat.key] = {};
+      for (const item of cat.items) {
+        const key = item.code || item.name;
+        _activeMenuLookup[cat.key][key] = item;
+      }
+    }
+  } else {
+    _activeMenuLookup = null;
+  }
+}
+
+export function getActiveMenu(): ApiMenuData | null {
+  return _activeMenu;
+}
+
+export function getActiveMenuName(): string {
+  return _activeMenu?.name || '';
+}
+
 export const MENU: MenuData = {
   casa: { price: "1€", items: [
     { code: "01", name: "Jamón Gran Reserva y aceite de oliva" },
@@ -237,10 +281,42 @@ export function getKey(item: MenuItem): string {
 }
 
 export function getCatLabel(k: string): string {
+  // Check active menu first
+  if (_activeMenu) {
+    for (const cat of _activeMenu.categories) {
+      if (cat.key === k) return cat.label;
+    }
+  }
   return CATEGORY_LABELS[k] || k;
 }
 
+export function getCatIcon(k: string): string {
+  if (_activeMenu) {
+    for (const cat of _activeMenu.categories) {
+      if (cat.key === k) return cat.icon;
+    }
+  }
+  return CATEGORY_ICONS[k] || 'fa-list';
+}
+
 export function getPrice(catKey: string, item: MenuItem): string {
+  // 1. Check if item has a price override in the active menu
+  if (_activeMenuLookup) {
+    const catItems = _activeMenuLookup[catKey];
+    if (catItems) {
+      const lookupKey = item.code || item.name;
+      const apiItem = catItems[lookupKey];
+      if (apiItem?.price) return apiItem.price;
+    }
+    // 2. Check category-level price in active menu
+    for (const cat of _activeMenu!.categories) {
+      if (cat.key === catKey && cat.items.length > 0) {
+        // Category doesn't have a direct price, items do
+        break;
+      }
+    }
+  }
+  
   if (item.price) return item.price;
   // Try direct key match (category-level price)
   const cat = MENU[catKey];
@@ -277,6 +353,19 @@ export function getPrice(catKey: string, item: MenuItem): string {
 }
 
 export function findItem(key: string): { category: string; item: MenuItem } | null {
+  // Check active menu first
+  if (_activeMenuLookup) {
+    for (const [catKey, items] of Object.entries(_activeMenuLookup)) {
+      const apiItem = items[key];
+      if (apiItem) {
+        return {
+          category: catKey,
+          item: { code: apiItem.code || undefined, name: apiItem.name, ingredients: apiItem.ingredients, price: apiItem.price },
+        };
+      }
+    }
+  }
+  // Fallback to static menu
   for (const [ck, cat] of Object.entries(MENU)) {
     if (!cat.items) continue;
     for (const item of cat.items) {
