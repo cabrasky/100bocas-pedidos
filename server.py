@@ -891,7 +891,7 @@ async def websocket_endpoint(ws: WebSocket, code: str):
 
 # ── SEO / static helpers ──────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-LANDING_PATH = os.path.join(BASE_DIR, "landing.html")
+LANDING_PATH = os.path.join(BASE_DIR, "frontend", "public", "landing.html")
 ROBOTS_PATH = os.path.join(BASE_DIR, "robots.txt")
 SITEMAP_PATH = os.path.join(BASE_DIR, "sitemap.xml")
 FAVICON_PATH = os.path.join(BASE_DIR, "frontend", "public", "favicon.svg")
