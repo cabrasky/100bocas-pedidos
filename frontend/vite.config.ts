@@ -5,8 +5,7 @@ export default defineConfig({
   plugins: [react()],
   base: '/',
   build: {
-    outDir: '../dist',
-    emptyOutDir: true,
+    emptyOutDir: false,
   },
   server: {
     port: 8113,
@@ -17,5 +16,8 @@ export default defineConfig({
         ws: true,
       },
     },
+  },
+  ssr: {
+    noExternal: true,
   },
 })

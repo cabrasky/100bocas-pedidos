@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import AdminPanel from './AdminPanel';
 
 interface Props {
@@ -94,9 +95,9 @@ function LoginScreen({ onLogin }: Props) {
             <button className="admin-link" onClick={() => setShowAdmin(true)}>
               <i className="fas fa-chart-simple"></i> Estadísticas
             </button>
-            <a href="/" className="admin-link">
+            <Link to="/" className="admin-link">
               <i className="fas fa-circle-info"></i> Acerca de
-            </a>
+            </Link>
           </div>
         </div>
       </div>

@@ -1,0 +1,16 @@
+{
+  "name": "Euromania — Pedidos Colaborativos",
+  "short_name": "Euromania",
+  "description": "App de pedidos colaborativos en tiempo real para Euromania",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f4c3a",
+  "theme_color": "#0f4c3a",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

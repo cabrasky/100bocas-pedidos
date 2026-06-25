@@ -5,9 +5,17 @@ interface Props {
   onShowQR: () => void;
   onLeave: () => void;
   onShowPrivacy: () => void;
+  sessionUrl: string;
 }
 
-function Header({ myName, sessionCode, onCopyCode, onShowQR, onLeave, onShowPrivacy }: Props) {
+function Header({ myName, sessionCode, onCopyCode, onShowQR, onLeave, onShowPrivacy, sessionUrl }: Props) {
+  const handleShareWhatsApp = () => {
+    const msg = encodeURIComponent(
+      `🍔 *Euromania — Pedido Colaborativo*\n\nCódigo: *${sessionCode}*\n\nÚnete aquí: ${sessionUrl}\n\nAñade tus montaditos y coordinamos el pedido 🎉`
+    );
+    window.open(`https://wa.me/?text=${msg}`, '_blank');
+  };
+
   return (
     <header>
       <div className="header-left">
@@ -21,6 +29,12 @@ function Header({ myName, sessionCode, onCopyCode, onShowQR, onLeave, onShowPriv
         <button className="qr-btn" onClick={onShowQR} title="Mostrar código QR">
           <i className="fas fa-qrcode"></i>
         </button>
+        <button className="whatsapp-btn" onClick={handleShareWhatsApp} title="Compartir por WhatsApp">
+          <i className="fab fa-whatsapp"></i>
+        </button>
+        <a href="https://github.com/cabrasky/euromania-pedidos" target="_blank" rel="noopener" className="github-btn" title="Ver en GitHub (código abierto)">
+          <i className="fab fa-github"></i>
+        </a>
         <button className="privacy-btn" onClick={onShowPrivacy} title="Aviso legal y privacidad">
           <i className="fas fa-shield-halved"></i>
         </button>

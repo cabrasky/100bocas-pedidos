@@ -25,7 +25,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 DB_DSN = os.getenv("EUROMANIA_DB", "postgresql://euromania:***@localhost:5432/euromania")
 HOST = os.getenv("EUROMANIA_HOST", "0.0.0.0")
 PORT = int(os.getenv("EUROMANIA_PORT", "8112"))
-STATIC_DIR = os.path.join(os.path.dirname(__file__), "dist")
+STATIC_DIR = os.path.join(os.path.dirname(__file__), "dist", "client")
 CLEANUP_INTERVAL = int(os.getenv("EUROMANIA_CLEANUP_INTERVAL", "1800"))
 SESSION_TTL = int(os.getenv("EUROMANIA_SESSION_TTL", "86400"))
 SESSION_MAX_AGE = int(os.getenv("EUROMANIA_SESSION_MAX_AGE", "432000"))  # 5 days max storage
@@ -916,6 +916,40 @@ else:
     _sitemap_xml = ""
 
 
+# ── SSR proxy ────────────────────────────────────
+SSR_URL = os.getenv("SSR_URL", "http://localhost:8120")
+
+
+async def _proxy_to_ssr(url: str) -> HTMLResponse:
+    """Proxy a request to the Node.js SSR server and return the HTML."""
+    import httpx
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get(f"{SSR_URL}{url}")
+            return _secure_response(HTMLResponse(content=resp.text, status_code=resp.status_code))
+    except Exception as exc:
+        print(f"[ssr] Proxy error: {exc}")
+        # Fallback: serve the client index.html (client-side render)
+        index_path = os.path.join(STATIC_DIR, "index.html")
+        if os.path.isfile(index_path):
+            with open(index_path, encoding="utf-8") as fh:
+                return _secure_response(HTMLResponse(fh.read()))
+        return HTMLResponse("<h1>Server error</h1>", status_code=503)
+
+
+@app.get("/")
+async def landing_page():
+    """Serve the React landing page via SSR proxy."""
+    return await _proxy_to_ssr("/")
+
+
+@app.get("/app")
+@app.get("/app/{path:path}")
+async def app_spa(request: Request):
+    """Serve the React SPA via SSR proxy."""
+    return await _proxy_to_ssr(request.url.path)
+
+
 @app.get("/robots.txt")
 async def robots():
     return _secure_response(HTMLResponse(content=_robots_txt, media_type="text/plain"))
@@ -940,22 +974,6 @@ async def manifest():
     if os.path.isfile(MANIFEST_PATH):
         return FileResponse(MANIFEST_PATH, media_type="application/manifest+json")
     return JSONResponse({})
-
-
-@app.get("/")
-async def landing_page():
-    return _secure_response(HTMLResponse(_landing_html))
-
-
-@app.get("/app")
-@app.get("/app/{path:path}")
-async def app_spa():
-    """Serve React SPA at /app path."""
-    index_path = os.path.join(STATIC_DIR, "index.html")
-    if os.path.isfile(index_path):
-        with open(index_path, encoding="utf-8") as fh:
-            return _secure_response(HTMLResponse(fh.read()))
-    return HTMLResponse("<h1>App not built</h1>")
 
 
 def _secure_response(resp):
