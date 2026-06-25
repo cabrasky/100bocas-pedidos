@@ -90,6 +90,26 @@ function LandingPage() {
         /* @__PURE__ */ jsx("p", { children: s.desc })
       ] }, i)) })
     ] }) }),
+    /* @__PURE__ */ jsx("section", { className: "landing-section landing-screenshots-section", style: { paddingTop: 0 }, children: /* @__PURE__ */ jsxs("div", { className: "landing-container", children: [
+      /* @__PURE__ */ jsxs("h2", { children: [
+        /* @__PURE__ */ jsx("i", { className: "fas fa-camera" }),
+        " Así se ve"
+      ] }),
+      /* @__PURE__ */ jsxs("div", { className: "landing-screenshots", children: [
+        /* @__PURE__ */ jsxs("div", { className: "landing-screenshot", children: [
+          /* @__PURE__ */ jsx("img", { src: "/screenshots/desktop.png", alt: "Vista de escritorio", loading: "lazy" }),
+          /* @__PURE__ */ jsx("div", { className: "landing-screenshot-label", children: "🖥️ Vista de escritorio" })
+        ] }),
+        /* @__PURE__ */ jsxs("div", { className: "landing-screenshot", children: [
+          /* @__PURE__ */ jsx("img", { src: "/screenshots/splitwise.png", alt: "Liquidación Splitwise", loading: "lazy" }),
+          /* @__PURE__ */ jsx("div", { className: "landing-screenshot-label", children: "💰 Liquidación de cuentas" })
+        ] }),
+        /* @__PURE__ */ jsxs("div", { className: "landing-screenshot", children: [
+          /* @__PURE__ */ jsx("img", { src: "/screenshots/history.png", alt: "Historial de comandas", loading: "lazy" }),
+          /* @__PURE__ */ jsx("div", { className: "landing-screenshot-label", children: "📋 Historial de comandas" })
+        ] })
+      ] })
+    ] }) }),
     /* @__PURE__ */ jsx("section", { className: "landing-section landing-legal", children: /* @__PURE__ */ jsx("div", { className: "landing-container", children: /* @__PURE__ */ jsxs("div", { className: "landing-legal-box", children: [
       /* @__PURE__ */ jsx("i", { className: "fas fa-scale-balanced" }),
       /* @__PURE__ */ jsx("h3", { children: "Aviso importante" }),

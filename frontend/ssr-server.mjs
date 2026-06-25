@@ -93,6 +93,11 @@ app.use('/assets', express.static(path.resolve(DIST_CLIENT, 'assets'), {
   immutable: true,
 }));
 
+// Static: screenshots directory
+app.use('/screenshots', express.static(path.resolve(DIST_CLIENT, 'screenshots'), {
+  maxAge: '1d',
+}));
+
 // Static: favicon, manifest, robots, sitemap
 const staticFiles = ['favicon.svg', 'site.webmanifest', 'robots.txt', 'sitemap.xml'];
 for (const file of staticFiles) {

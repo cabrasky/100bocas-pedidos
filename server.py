@@ -1554,6 +1554,7 @@ ROBOTS_PATH = os.path.join(BASE_DIR, "robots.txt")
 SITEMAP_PATH = os.path.join(BASE_DIR, "sitemap.xml")
 FAVICON_PATH = os.path.join(BASE_DIR, "frontend", "public", "favicon.svg")
 MANIFEST_PATH = os.path.join(BASE_DIR, "frontend", "public", "site.webmanifest")
+SCREENSHOTS_DIR = os.path.join(BASE_DIR, "frontend", "public", "screenshots")
 
 if os.path.isfile(LANDING_PATH):
     with open(LANDING_PATH, encoding="utf-8") as fh:
@@ -1632,6 +1633,31 @@ async def manifest():
     if os.path.isfile(MANIFEST_PATH):
         return FileResponse(MANIFEST_PATH, media_type="application/manifest+json")
     return JSONResponse({})
+
+
+SCREENSHOT_TYPES = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".webp": "image/webp",
+}
+
+
+@app.get("/screenshots/{filename:path}")
+async def screenshots(filename: str):
+    import mimetypes
+    safe = os.path.basename(filename)
+    filepath = os.path.join(SCREENSHOTS_DIR, safe)
+    if not os.path.isfile(filepath):
+        # Also check dist/client/screenshots/
+        dist_path = os.path.join(BASE_DIR, "dist", "client", "screenshots", safe)
+        if os.path.isfile(dist_path):
+            filepath = dist_path
+        else:
+            return HTMLResponse("Not found", status_code=404)
+    ext = os.path.splitext(filename)[1].lower()
+    media_type = SCREENSHOT_TYPES.get(ext, mimetypes.guess_type(filename)[0] or "image/png")
+    return FileResponse(filepath, media_type=media_type)
 
 
 def _secure_response(resp):

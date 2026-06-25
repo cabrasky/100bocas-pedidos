@@ -99,6 +99,27 @@ function LandingPage() {
         </div>
       </section>
 
+      {/* Screenshots */}
+      <section className="landing-section landing-screenshots-section" style={{ paddingTop: 0 }}>
+        <div className="landing-container">
+          <h2><i className="fas fa-camera" /> Así se ve</h2>
+          <div className="landing-screenshots">
+            <div className="landing-screenshot">
+              <img src="/screenshots/desktop.png" alt="Vista de escritorio" loading="lazy" />
+              <div className="landing-screenshot-label">🖥️ Vista de escritorio</div>
+            </div>
+            <div className="landing-screenshot">
+              <img src="/screenshots/splitwise.png" alt="Liquidación Splitwise" loading="lazy" />
+              <div className="landing-screenshot-label">💰 Liquidación de cuentas</div>
+            </div>
+            <div className="landing-screenshot">
+              <img src="/screenshots/history.png" alt="Historial de comandas" loading="lazy" />
+              <div className="landing-screenshot-label">📋 Historial de comandas</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Legal */}
       <section className="landing-section landing-legal">
         <div className="landing-container">

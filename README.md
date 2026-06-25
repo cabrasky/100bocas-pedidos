@@ -36,7 +36,6 @@
   <img src="frontend/public/screenshots/splitwise.png" width="49%" alt="Liquidación Splitwise">
   <br>
   <img src="frontend/public/screenshots/history.png" width="49%" alt="Historial de comandas">
-  <img src="frontend/public/screenshots/landing.png" width="49%" alt="Landing page">
 </p>
 
 ---
