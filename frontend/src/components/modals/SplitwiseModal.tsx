@@ -36,11 +36,103 @@ interface HistoryOrder {
   items: HistoryItem[];
 }
 
+// ── Settlement calculation ──
+function computeSettlement(historyOrders: HistoryOrder[], persons: Person[]) {
+  const netBalance: Record<string, number> = {};
+  const allItems: Record<string, Array<{ name: string; qty: number; price: number }>> = {};
+  const rounds: Array<{ label: string; payer: string; items: HistoryItem[] }> = [];
+
+  historyOrders.forEach(order => {
+    const items = order.items || [];
+    const personConsumption: Record<string, number> = {};
+    items.forEach((item: HistoryItem) => {
+      const p = item.person || '?';
+      const cost = (item.price || 0) * (item.qty || 0);
+      personConsumption[p] = (personConsumption[p] || 0) + cost;
+      if (!allItems[p]) allItems[p] = [];
+      allItems[p].push({ name: item.item_name, qty: item.qty || 0, price: cost });
+    });
+
+    const totalOrder = Object.values(personConsumption).reduce((s, v) => s + v, 0);
+    const payer = order.paid_by || '?';
+
+    rounds.push({ label: `#${order.order_number}`, payer, items: items.map(i => ({ ...i, price: i.price || 0 })) });
+
+    Object.entries(personConsumption).forEach(([person, consumption]) => {
+      if (person === payer) {
+        netBalance[person] = (netBalance[person] || 0) + (totalOrder - consumption);
+      } else {
+        netBalance[person] = (netBalance[person] || 0) - consumption;
+      }
+    });
+  });
+
+  let currentRoundTotal = 0;
+  persons.forEach(p => {
+    const entries = Object.entries(p.items).filter(([_, o]) => (o as any).qty > 0);
+    if (entries.length === 0) return;
+    const personCurrent = entries.reduce((s, [_, o]) => {
+      const item = o as any;
+      return s + parsePrice(getPrice(item.category, item.item)) * item.qty;
+    }, 0);
+    currentRoundTotal += personCurrent;
+    if (!allItems[p.name]) allItems[p.name] = [];
+    entries.forEach(([key, o]) => {
+      const item = o as any;
+      allItems[p.name].push({ name: item.item.name || key, qty: item.qty || 0, price: (parsePrice(getPrice(item.category, item.item)) * item.qty) });
+    });
+    netBalance[p.name] = (netBalance[p.name] || 0) - personCurrent;
+  });
+
+  const hasActive = currentRoundTotal > 0;
+
+  const pts: PersonTotal[] = Object.entries(allItems)
+    .map(([name, items]) => ({
+      name,
+      items: items.map(i => ({ name: i.name, qty: i.qty, price: Math.round(i.price * 100) / 100 })),
+      total: Math.round(items.reduce((s, i) => s + i.price, 0) * 100) / 100,
+    }))
+    .sort((a, b) => b.total - a.total);
+
+  const gt = Math.round(pts.reduce((s, p) => s + p.total, 0) * 100) / 100;
+
+  const debtors: { name: string; debt: number }[] = [];
+  const creditors: { name: string; credit: number }[] = [];
+  Object.entries(netBalance).forEach(([person, balance]) => {
+    const rounded = Math.round(balance * 100) / 100;
+    if (rounded > 0.01) creditors.push({ name: person, credit: rounded });
+    else if (rounded < -0.01) debtors.push({ name: person, debt: Math.abs(rounded) });
+  });
+  debtors.sort((a, b) => b.debt - a.debt);
+  creditors.sort((a, b) => b.credit - a.credit);
+
+  const settlements: Settlement[] = [];
+  let di = 0, ci = 0;
+  while (di < debtors.length && ci < creditors.length) {
+    const amount = Math.round(Math.min(debtors[di].debt, creditors[ci].credit) * 100) / 100;
+    if (amount > 0.01) settlements.push({ from: debtors[di].name, to: creditors[ci].name, amount });
+    debtors[di].debt = Math.round((debtors[di].debt - amount) * 100) / 100;
+    creditors[ci].credit = Math.round((creditors[ci].credit - amount) * 100) / 100;
+    if (debtors[di].debt < 0.01) di++;
+    if (creditors[ci].credit < 0.01) ci++;
+  }
+
+  return { personTotals: pts, groupTotal: gt, settlements, roundDetails: rounds, hasActive };
+}
+
 function SplitwiseModal({ open, onClose, persons, sessionCode }: Props) {
   const [copied, setCopied] = useState<'text' | 'csv' | null>(null);
   const [historyOrders, setHistoryOrders] = useState<HistoryOrder[]>([]);
   const [loading, setLoading] = useState(false);
+  const [computed, setComputed] = useState<{
+    personTotals: PersonTotal[];
+    groupTotal: number;
+    settlements: Settlement[];
+    roundDetails: Array<{ label: string; payer: string; items: HistoryItem[] }>;
+    hasActive: boolean;
+  }>({ personTotals: [], groupTotal: 0, settlements: [], roundDetails: [], hasActive: false });
 
+  // Fetch history when modal opens
   useEffect(() => {
     if (!open || !sessionCode) return;
     setLoading(true);
@@ -50,142 +142,18 @@ function SplitwiseModal({ open, onClose, persons, sessionCode }: Props) {
       .finally(() => setLoading(false));
   }, [open, sessionCode]);
 
-  // ── Settlement calculation ──
-  // For each historical order: the payer covered the total, so non-payers owe their consumption to the payer
-  // For current active round: no one paid yet, so everyone owes their consumption (will need payment)
-  const { personTotals, groupTotal, settlements, roundDetails, hasActive } = useMemo(() => {
-    // Net balance per person: positive = owed money, negative = owes money
-    const netBalance: Record<string, number> = {};
-    // For display: items per person across all rounds
-    const allItems: Record<string, Array<{ name: string; qty: number; price: number; round: string }>> = {};
-    // Track who was in which round for display
-    const rounds: Array<{ label: string; payer: string; items: HistoryItem[] }> = [];
-
-    // ── Process historical orders ──
-    historyOrders.forEach(order => {
-      const items = order.items || [];
-      // Calculate per-person consumption in this order
-      const personConsumption: Record<string, number> = {};
-      items.forEach((item: HistoryItem) => {
-        const p = item.person || '?';
-        const cost = (item.price || 0) * (item.qty || 0);
-        personConsumption[p] = (personConsumption[p] || 0) + cost;
-
-        // Add to display items
-        if (!allItems[p]) allItems[p] = [];
-        allItems[p].push({
-          name: item.item_name,
-          qty: item.qty || 0,
-          price: cost,
-          round: `#${order.order_number}`,
-        });
-      });
-
-      const totalOrder = Object.values(personConsumption).reduce((s, v) => s + v, 0);
-      const payer = order.paid_by || '?';
-
-      rounds.push({
-        label: `#${order.order_number}`,
-        payer,
-        items: items.map(i => ({ ...i, price: i.price || 0 })),
-      });
-
-      // Settlement: payer covered total, everyone else owes their share
-      Object.entries(personConsumption).forEach(([person, consumption]) => {
-        if (person === payer) {
-          // Payer paid total_order but only consumed consumption
-          // They're owed: total_order - consumption (what others owe them)
-          netBalance[person] = (netBalance[person] || 0) + (totalOrder - consumption);
-        } else {
-          // Non-payer owes their consumption (the payer already covered it)
-          netBalance[person] = (netBalance[person] || 0) - consumption;
-        }
-      });
-    });
-
-    // ── Process current active round ──
-    let currentRoundTotal = 0;
-    persons.forEach(p => {
-      const items = Object.entries(p.items).filter(([_, o]) => (o as any).qty > 0);
-      if (items.length === 0) return;
-      
-      items.forEach(([key, o]) => {
-        const item = o as any;
-        const cost = parsePrice(getPrice(item.category, item.item)) * item.qty;
-        currentRoundTotal += cost;
-
-        if (!allItems[p.name]) allItems[p.name] = [];
-        allItems[p.name].push({
-          name: item.item.name || key,
-          qty: item.qty || 0,
-          price: cost,
-          round: 'activa',
-        });
-      });
-
-      // Current round: no one paid, so everyone just owes their consumption
-      const personCurrent = items.reduce((s, [_, o]) => {
-        const item = o as any;
-        return s + parsePrice(getPrice(item.category, item.item)) * item.qty;
-      }, 0);
-      netBalance[p.name] = (netBalance[p.name] || 0) - personCurrent;
-    });
-
-    const hasActive = currentRoundTotal > 0;
-
-    // ── Build display: per-person totals ──
-    const pts: PersonTotal[] = Object.entries(allItems)
-      .map(([name, items]) => ({
-        name,
-        items: items.map(i => ({
-          name: i.name,
-          qty: i.qty,
-          price: Math.round(i.price * 100) / 100,
-        })),
-        total: Math.round(items.reduce((s, i) => s + i.price, 0) * 100) / 100,
-      }))
-      .sort((a, b) => b.total - a.total);
-
-    const gt = Math.round(pts.reduce((s, p) => s + p.total, 0) * 100) / 100;
-
-    // ── Calculate settlements from net balances ──
-    const debtors: { name: string; debt: number }[] = [];
-    const creditors: { name: string; credit: number }[] = [];
-
-    Object.entries(netBalance).forEach(([person, balance]) => {
-      const rounded = Math.round(balance * 100) / 100;
-      if (rounded > 0.01) {
-        creditors.push({ name: person, credit: rounded });
-      } else if (rounded < -0.01) {
-        debtors.push({ name: person, debt: Math.abs(rounded) });
-      }
-    });
-
-    // Sort by amount descending
-    debtors.sort((a, b) => b.debt - a.debt);
-    creditors.sort((a, b) => b.credit - a.credit);
-
-    const s: Settlement[] = [];
-    let di = 0, ci = 0;
-    while (di < debtors.length && ci < creditors.length) {
-      const amount = Math.round(Math.min(debtors[di].debt, creditors[ci].credit) * 100) / 100;
-      if (amount > 0.01) {
-        s.push({ from: debtors[di].name, to: creditors[ci].name, amount });
-      }
-      debtors[di].debt = Math.round((debtors[di].debt - amount) * 100) / 100;
-      creditors[ci].credit = Math.round((creditors[ci].credit - amount) * 100) / 100;
-      if (debtors[di].debt < 0.01) di++;
-      if (creditors[ci].credit < 0.01) ci++;
+  // Recompute when history or persons change
+  useEffect(() => {
+    if (loading) return;
+    try {
+      const result = computeSettlement(historyOrders, persons);
+      setComputed(result);
+    } catch {
+      setComputed({ personTotals: [], groupTotal: 0, settlements: [], roundDetails: [], hasActive: false });
     }
+  }, [historyOrders, persons, loading]);
 
-    return {
-      personTotals: pts,
-      groupTotal: gt,
-      settlements: s,
-      roundDetails: rounds,
-      hasActive,
-    };
-  }, [historyOrders, persons]);
+  const { personTotals, groupTotal, settlements, roundDetails, hasActive } = computed;
 
   const formatPrice = (n: number) => n.toFixed(2).replace('.', ',') + '€';
 
