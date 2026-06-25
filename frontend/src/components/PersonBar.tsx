@@ -23,7 +23,7 @@ function PersonBar({ persons, myName, currentPersonIdx, onSelectPerson, onDelete
             onClick={() => onSelectPerson(i)}
           >
             <i className={`fas ${isMe ? 'fa-crown' : 'fa-user'}`}></i>
-            {' '}{p.name}{isMe ? ' <span style="font-size:9px;opacity:.6">(tú)</span>' : ''}
+            {' '}{p.name}{isMe ? <span style={{fontSize: 9, opacity: 0.6}}> (tú)</span> : ''}
             <span className="p-count">{count}</span>
             {!isMe && (
               <span

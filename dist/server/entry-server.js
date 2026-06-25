@@ -1285,7 +1285,7 @@ function PersonBar({ persons, myName, currentPersonIdx, onSelectPerson, onDelete
             /* @__PURE__ */ jsx("i", { className: `fas ${isMe ? "fa-crown" : "fa-user"}` }),
             " ",
             p.name,
-            isMe ? ' <span style="font-size:9px;opacity:.6">(tú)</span>' : "",
+            isMe ? /* @__PURE__ */ jsx("span", { style: { fontSize: 9, opacity: 0.6 }, children: " (tú)" }) : "",
             /* @__PURE__ */ jsx("span", { className: "p-count", children: count }),
             !isMe && /* @__PURE__ */ jsx(
               "span",
