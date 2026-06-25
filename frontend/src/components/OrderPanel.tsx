@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Person } from '../types';
 import { CATEGORY_LABELS } from '../data/menuData';
 import { getKey, getPrice, parsePrice } from '../services/menuStore';
@@ -14,6 +14,7 @@ interface Props {
 }
 
 function OrderPanel({ currentPerson, persons, onChangeQty, onRemoveItem, onClear, onExport, onExportConsolidated }: Props) {
+  const [collapsed, setCollapsed] = useState(true);
   const items = useMemo(() => currentPerson ? Object.values(currentPerson.items) : [], [currentPerson]);
   const count = useMemo(() => items.reduce((s, o) => s + o.qty, 0), [items]);
   const personTotal = useMemo(() =>
@@ -21,7 +22,6 @@ function OrderPanel({ currentPerson, persons, onChangeQty, onRemoveItem, onClear
     [items]
   );
 
-  // Consolidated totals by category
   const catTotals = useMemo(() => {
     const byCat: Record<string, { ud: number; price: number }> = {};
     persons.forEach(p => {
@@ -41,12 +41,23 @@ function OrderPanel({ currentPerson, persons, onChangeQty, onRemoveItem, onClear
   );
 
   return (
-    <div className="order-panel">
-      <h2>
-        <i className="fas fa-user" style={{ color: '#2563eb' }}></i>
-        {' '}{currentPerson?.name || '—'} <span>{count}</span>
-      </h2>
-      <div className="order-sub">Toca un producto para añadirlo</div>
+    <div className={`order-panel ${collapsed ? 'collapsed' : ''}`}>
+      {/* Mobile drag handle */}
+      <button className="drag-handle" onClick={() => setCollapsed(!collapsed)}
+        aria-label={collapsed ? 'Abrir pedido' : 'Cerrar pedido'}>
+        <span className="drag-handle-bar"></span>
+      </button>
+
+      <div className="order-panel-header">
+        <div className="op-avatar">
+          <i className="fas fa-user"></i>
+        </div>
+        <h2>{currentPerson?.name || '—'}</h2>
+        <span className="op-count">{count}</span>
+      </div>
+      <div className="order-sub">
+        {items.length === 0 ? 'Toca un producto para añadirlo' : `${count} producto${count !== 1 ? 's' : ''}`}
+      </div>
 
       <div className="order-items">
         {items.length === 0 ? (
@@ -81,68 +92,65 @@ function OrderPanel({ currentPerson, persons, onChangeQty, onRemoveItem, onClear
         )}
       </div>
 
-      <div className="order-person-total">
-        <span>Total persona</span>
-        <span>{personTotal.toFixed(2).replace('.', ',')}€</span>
-      </div>
-
-      {/* Consolidated summary by category */}
-      <div className="group-summary">
-        <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', marginBottom: 4, textTransform: 'uppercase', letterSpacing: .5 }}>
-          Resumen grupo
-        </div>
-        <div id="groupRows">
-          {persons.map((p, i) => {
-            const total = Object.values(p.items).reduce((s, o) => s + parsePrice(getPrice(o.category, o.item)) * o.qty, 0);
-            const active = p.name === currentPerson?.name;
-            return (
-              <div
-                key={p.name}
-                className="group-row"
-                style={active ? { background: '#eff6ff', borderRadius: 6, padding: '3px 6px' } : {}}
-              >
-                <span className="gr-name">{active ? '▶ ' : ''}{p.name}</span>
-                <span className="gr-total">{total.toFixed(2).replace('.', ',')}€</span>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Category breakdown */}
-        {Object.keys(catTotals).length > 0 && (
-          <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid #e2e8f0' }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', marginBottom: 6, textTransform: 'uppercase', letterSpacing: .5 }}>
-              <i className="fas fa-layer-group" style={{ marginRight: 4 }}></i>Por categoría
-            </div>
-            {Object.entries(catTotals).map(([catKey, ct]) => {
-              const label = CATEGORY_LABELS[catKey] || catKey;
-              return (
-                <div key={catKey} className="group-row" style={{ fontSize: 12 }}>
-                  <span className="gr-name">{label}</span>
-                  <span className="gr-total">{ct.ud} ud · {ct.price.toFixed(2).replace('.', ',')}€</span>
-                </div>
-              );
-            })}
+      {items.length > 0 && (
+        <>
+          <div className="order-person-total">
+            <span>Total persona</span>
+            <span>{personTotal.toFixed(2).replace('.', ',')}€</span>
           </div>
-        )}
 
-        <div className="group-total-row">
-          <span className="gt-label">Total grupo</span>
-          <span>
-            {groupTotal.toFixed(2).replace('.', ',')}€
-          </span>
-        </div>
-      </div>
+          <div className="group-summary">
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', marginBottom: 6, textTransform: 'uppercase', letterSpacing: .5 }}>
+              Resumen grupo
+            </div>
+            <div id="groupRows">
+              {persons.map((p, i) => {
+                const total = Object.values(p.items).reduce((s, o) => s + parsePrice(getPrice(o.category, o.item)) * o.qty, 0);
+                const active = p.name === currentPerson?.name;
+                return (
+                  <div key={p.name} className="group-row" style={active ? { background: '#eff6ff', borderRadius: 8, padding: '4px 8px' } : {}}>
+                    <span className="gr-name">{active ? '▶ ' : ''}{p.name}</span>
+                    <span className="gr-total">{total.toFixed(2).replace('.', ',')}€</span>
+                  </div>
+                );
+              })}
+            </div>
+
+            {Object.keys(catTotals).length > 0 && (
+              <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid #e2e8f0' }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', marginBottom: 6, textTransform: 'uppercase', letterSpacing: .5 }}>
+                  <i className="fas fa-layer-group" style={{ marginRight: 4 }}></i>Por categoría
+                </div>
+                {Object.entries(catTotals).map(([catKey, ct]) => {
+                  const label = CATEGORY_LABELS[catKey] || catKey;
+                  return (
+                    <div key={catKey} className="group-row" style={{ fontSize: 12 }}>
+                      <span className="gr-name">{label}</span>
+                      <span className="gr-total">{ct.ud} ud · {ct.price.toFixed(2).replace('.', ',')}€</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <div className="group-total-row">
+              <span className="gt-label">Total grupo</span>
+              <span>{groupTotal.toFixed(2).replace('.', ',')}€</span>
+            </div>
+          </div>
+        </>
+      )}
 
       <div className="order-actions">
         <button className="btn-clear" onClick={onClear}>
-          <i className="fas fa-trash-can"></i> Vaciar
+          <i className="fas fa-trash-can"></i> <span>Vaciar</span>
         </button>
-        <button className="btn-export" onClick={onExport} style={{ flex: 1 }}>
-          <i className="fas fa-clipboard-list"></i> Personas
+        <button className="btn-export" onClick={onExport}>
+          <i className="fas fa-clipboard-list"></i> <span>Personas</span>
         </button>
-        <button className="btn-export" onClick={onExportConsolidated} style={{ flex: 1, background: '#f0fdf4', borderColor: '#86efac', color: '#166534' }}>
-          <i className="fas fa-list"></i> Pedido
+        <button className="btn-export" onClick={onExportConsolidated}
+          style={{ background: '#f0fdf4', border: '1px solid #86efac', color: '#166534' }}>
+          <i className="fas fa-list"></i> <span>Pedido</span>
         </button>
       </div>
     </div>

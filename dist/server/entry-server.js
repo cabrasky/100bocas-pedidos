@@ -1757,6 +1757,7 @@ function MenuGrid({ persons, currentPersonIdx, activeCat, searchTerm, onSetCateg
   ] });
 }
 function OrderPanel({ currentPerson, persons, onChangeQty, onRemoveItem, onClear, onExport, onExportConsolidated }) {
+  const [collapsed, setCollapsed] = useState(true);
   const items = useMemo(() => currentPerson ? Object.values(currentPerson.items) : [], [currentPerson]);
   const count = useMemo(() => items.reduce((s, o) => s + o.qty, 0), [items]);
   const personTotal = useMemo(
@@ -1779,15 +1780,22 @@ function OrderPanel({ currentPerson, persons, onChangeQty, onRemoveItem, onClear
     () => Object.values(catTotals).reduce((s, c) => s + c.price, 0),
     [catTotals]
   );
-  return /* @__PURE__ */ jsxs("div", { className: "order-panel", children: [
-    /* @__PURE__ */ jsxs("h2", { children: [
-      /* @__PURE__ */ jsx("i", { className: "fas fa-user", style: { color: "#2563eb" } }),
-      " ",
-      (currentPerson == null ? void 0 : currentPerson.name) || "—",
-      " ",
-      /* @__PURE__ */ jsx("span", { children: count })
+  return /* @__PURE__ */ jsxs("div", { className: `order-panel ${collapsed ? "collapsed" : ""}`, children: [
+    /* @__PURE__ */ jsx(
+      "button",
+      {
+        className: "drag-handle",
+        onClick: () => setCollapsed(!collapsed),
+        "aria-label": collapsed ? "Abrir pedido" : "Cerrar pedido",
+        children: /* @__PURE__ */ jsx("span", { className: "drag-handle-bar" })
+      }
+    ),
+    /* @__PURE__ */ jsxs("div", { className: "order-panel-header", children: [
+      /* @__PURE__ */ jsx("div", { className: "op-avatar", children: /* @__PURE__ */ jsx("i", { className: "fas fa-user" }) }),
+      /* @__PURE__ */ jsx("h2", { children: (currentPerson == null ? void 0 : currentPerson.name) || "—" }),
+      /* @__PURE__ */ jsx("span", { className: "op-count", children: count })
     ] }),
-    /* @__PURE__ */ jsx("div", { className: "order-sub", children: "Toca un producto para añadirlo" }),
+    /* @__PURE__ */ jsx("div", { className: "order-sub", children: items.length === 0 ? "Toca un producto para añadirlo" : `${count} producto${count !== 1 ? "s" : ""}` }),
     /* @__PURE__ */ jsx("div", { className: "order-items", children: items.length === 0 ? /* @__PURE__ */ jsxs("div", { className: "order-empty", children: [
       /* @__PURE__ */ jsx("i", { className: "fas fa-cart-plus" }),
       /* @__PURE__ */ jsx("p", { children: "Sin productos" })
@@ -1804,76 +1812,81 @@ function OrderPanel({ currentPerson, persons, onChangeQty, onRemoveItem, onClear
         /* @__PURE__ */ jsx("button", { className: "oi-remove", onClick: () => onRemoveItem(key), children: /* @__PURE__ */ jsx("i", { className: "fas fa-xmark" }) })
       ] }, key);
     }) }),
-    /* @__PURE__ */ jsxs("div", { className: "order-person-total", children: [
-      /* @__PURE__ */ jsx("span", { children: "Total persona" }),
-      /* @__PURE__ */ jsxs("span", { children: [
-        personTotal.toFixed(2).replace(".", ","),
-        "€"
-      ] })
-    ] }),
-    /* @__PURE__ */ jsxs("div", { className: "group-summary", children: [
-      /* @__PURE__ */ jsx("div", { style: { fontSize: 11, fontWeight: 700, color: "#64748b", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }, children: "Resumen grupo" }),
-      /* @__PURE__ */ jsx("div", { id: "groupRows", children: persons.map((p, i) => {
-        const total = Object.values(p.items).reduce((s, o) => s + parsePrice(getPrice(o.category, o.item)) * o.qty, 0);
-        const active = p.name === (currentPerson == null ? void 0 : currentPerson.name);
-        return /* @__PURE__ */ jsxs(
-          "div",
-          {
-            className: "group-row",
-            style: active ? { background: "#eff6ff", borderRadius: 6, padding: "3px 6px" } : {},
-            children: [
-              /* @__PURE__ */ jsxs("span", { className: "gr-name", children: [
-                active ? "▶ " : "",
-                p.name
-              ] }),
-              /* @__PURE__ */ jsxs("span", { className: "gr-total", children: [
-                total.toFixed(2).replace(".", ","),
-                "€"
-              ] })
-            ]
-          },
-          p.name
-        );
-      }) }),
-      Object.keys(catTotals).length > 0 && /* @__PURE__ */ jsxs("div", { style: { marginTop: 10, paddingTop: 10, borderTop: "1px solid #e2e8f0" }, children: [
-        /* @__PURE__ */ jsxs("div", { style: { fontSize: 11, fontWeight: 700, color: "#64748b", marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }, children: [
-          /* @__PURE__ */ jsx("i", { className: "fas fa-layer-group", style: { marginRight: 4 } }),
-          "Por categoría"
-        ] }),
-        Object.entries(catTotals).map(([catKey, ct]) => {
-          const label = CATEGORY_LABELS[catKey] || catKey;
-          return /* @__PURE__ */ jsxs("div", { className: "group-row", style: { fontSize: 12 }, children: [
-            /* @__PURE__ */ jsx("span", { className: "gr-name", children: label }),
+    items.length > 0 && /* @__PURE__ */ jsxs(Fragment, { children: [
+      /* @__PURE__ */ jsxs("div", { className: "order-person-total", children: [
+        /* @__PURE__ */ jsx("span", { children: "Total persona" }),
+        /* @__PURE__ */ jsxs("span", { children: [
+          personTotal.toFixed(2).replace(".", ","),
+          "€"
+        ] })
+      ] }),
+      /* @__PURE__ */ jsxs("div", { className: "group-summary", children: [
+        /* @__PURE__ */ jsx("div", { style: { fontSize: 11, fontWeight: 700, color: "#64748b", marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }, children: "Resumen grupo" }),
+        /* @__PURE__ */ jsx("div", { id: "groupRows", children: persons.map((p, i) => {
+          const total = Object.values(p.items).reduce((s, o) => s + parsePrice(getPrice(o.category, o.item)) * o.qty, 0);
+          const active = p.name === (currentPerson == null ? void 0 : currentPerson.name);
+          return /* @__PURE__ */ jsxs("div", { className: "group-row", style: active ? { background: "#eff6ff", borderRadius: 8, padding: "4px 8px" } : {}, children: [
+            /* @__PURE__ */ jsxs("span", { className: "gr-name", children: [
+              active ? "▶ " : "",
+              p.name
+            ] }),
             /* @__PURE__ */ jsxs("span", { className: "gr-total", children: [
-              ct.ud,
-              " ud · ",
-              ct.price.toFixed(2).replace(".", ","),
+              total.toFixed(2).replace(".", ","),
               "€"
             ] })
-          ] }, catKey);
-        })
-      ] }),
-      /* @__PURE__ */ jsxs("div", { className: "group-total-row", children: [
-        /* @__PURE__ */ jsx("span", { className: "gt-label", children: "Total grupo" }),
-        /* @__PURE__ */ jsxs("span", { children: [
-          groupTotal.toFixed(2).replace(".", ","),
-          "€"
+          ] }, p.name);
+        }) }),
+        Object.keys(catTotals).length > 0 && /* @__PURE__ */ jsxs("div", { style: { marginTop: 10, paddingTop: 10, borderTop: "1px solid #e2e8f0" }, children: [
+          /* @__PURE__ */ jsxs("div", { style: { fontSize: 11, fontWeight: 700, color: "#64748b", marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }, children: [
+            /* @__PURE__ */ jsx("i", { className: "fas fa-layer-group", style: { marginRight: 4 } }),
+            "Por categoría"
+          ] }),
+          Object.entries(catTotals).map(([catKey, ct]) => {
+            const label = CATEGORY_LABELS[catKey] || catKey;
+            return /* @__PURE__ */ jsxs("div", { className: "group-row", style: { fontSize: 12 }, children: [
+              /* @__PURE__ */ jsx("span", { className: "gr-name", children: label }),
+              /* @__PURE__ */ jsxs("span", { className: "gr-total", children: [
+                ct.ud,
+                " ud · ",
+                ct.price.toFixed(2).replace(".", ","),
+                "€"
+              ] })
+            ] }, catKey);
+          })
+        ] }),
+        /* @__PURE__ */ jsxs("div", { className: "group-total-row", children: [
+          /* @__PURE__ */ jsx("span", { className: "gt-label", children: "Total grupo" }),
+          /* @__PURE__ */ jsxs("span", { children: [
+            groupTotal.toFixed(2).replace(".", ","),
+            "€"
+          ] })
         ] })
       ] })
     ] }),
     /* @__PURE__ */ jsxs("div", { className: "order-actions", children: [
       /* @__PURE__ */ jsxs("button", { className: "btn-clear", onClick: onClear, children: [
         /* @__PURE__ */ jsx("i", { className: "fas fa-trash-can" }),
-        " Vaciar"
+        " ",
+        /* @__PURE__ */ jsx("span", { children: "Vaciar" })
       ] }),
-      /* @__PURE__ */ jsxs("button", { className: "btn-export", onClick: onExport, style: { flex: 1 }, children: [
+      /* @__PURE__ */ jsxs("button", { className: "btn-export", onClick: onExport, children: [
         /* @__PURE__ */ jsx("i", { className: "fas fa-clipboard-list" }),
-        " Personas"
+        " ",
+        /* @__PURE__ */ jsx("span", { children: "Personas" })
       ] }),
-      /* @__PURE__ */ jsxs("button", { className: "btn-export", onClick: onExportConsolidated, style: { flex: 1, background: "#f0fdf4", borderColor: "#86efac", color: "#166534" }, children: [
-        /* @__PURE__ */ jsx("i", { className: "fas fa-list" }),
-        " Pedido"
-      ] })
+      /* @__PURE__ */ jsxs(
+        "button",
+        {
+          className: "btn-export",
+          onClick: onExportConsolidated,
+          style: { background: "#f0fdf4", border: "1px solid #86efac", color: "#166534" },
+          children: [
+            /* @__PURE__ */ jsx("i", { className: "fas fa-list" }),
+            " ",
+            /* @__PURE__ */ jsx("span", { children: "Pedido" })
+          ]
+        }
+      )
     ] })
   ] });
 }
