@@ -729,9 +729,7 @@ header .header-right {
   .cat-btn i + span { display: none; }
 }
 
-/* ═══════════════════════════════════════════
-   MOBILE FAB + OVERLAY (always visible, used on mobile)
-   ═══════════════════════════════════════════ */
+/* ── MOBILE FAB + OVERLAY (always visible, used on mobile) ── */
 .mobile-fab {
   position: fixed;
   bottom: 20px;
@@ -1033,7 +1031,8 @@ header .header-right {
 .hp-total-price { font-size: 16px; font-weight: 800; color: #059669; }
 
 @media (max-width: 860px) {
-  .history-panel { display: none; }
+  .history-panel { margin-top: 12px; border-radius: 16px; }
+  .history-panel .history-body { max-height: 300px; }
 }
 
 /* ═══════════════════════════════════════════
