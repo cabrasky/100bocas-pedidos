@@ -23,14 +23,14 @@ function OrderHistoryModal({ open, onClose, sessionCode }: Props) {
     }
   }, [open, sessionCode]);
 
-  if (!open) return null;
-
   const totalAllOrders = useMemo(() => {
     return orders.reduce((sum, o) => {
       const items = o.items || [];
       return sum + items.reduce((s: number, i: any) => s + (i.price || 0) * i.qty, 0);
     }, 0);
   }, [orders]);
+
+  if (!open) return null;
 
   return (
     <div className="modal-overlay" onClick={onClose}>

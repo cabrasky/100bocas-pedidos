@@ -2291,13 +2291,13 @@ function OrderHistoryModal({ open, onClose, sessionCode }) {
       }).finally(() => setLoading(false));
     }
   }, [open, sessionCode]);
-  if (!open) return null;
   const totalAllOrders = useMemo(() => {
     return orders.reduce((sum, o) => {
       const items = o.items || [];
       return sum + items.reduce((s, i) => s + (i.price || 0) * i.qty, 0);
     }, 0);
   }, [orders]);
+  if (!open) return null;
   return /* @__PURE__ */ jsx("div", { className: "modal-overlay", onClick: onClose, children: /* @__PURE__ */ jsxs("div", { className: "modal-box order-view-box", onClick: (e) => e.stopPropagation(), children: [
     /* @__PURE__ */ jsxs("div", { className: "modal-header", children: [
       /* @__PURE__ */ jsx("i", { className: "fas fa-clock-rotate" }),
