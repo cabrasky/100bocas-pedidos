@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- ── SEO Básico ───────────────────────────── -->
+  <title>Euromania — Pedidos Colaborativos en Tiempo Real</title>
+  <meta name="description" content="Crea una sesión de pedidos en grupo, comparte el código con tus amigos y haced el pedido juntos en tiempo real. Sin registros, sin complicaciones. Proyecto independiente by cabrasky.">
+  <meta name="keywords" content="euromania, pedidos colaborativos, montaditos, pedidos en grupo, comida, tiempo real, menú">
+  <meta name="author" content="cabrasky — Javier Mateos Mata">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://euromania.cabrasky.net/">
+
+  <!-- ── Open Graph / Facebook ────────────────── -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://euromania.cabrasky.net/">
+  <meta property="og:title" content="Euromania — Pedidos Colaborativos en Tiempo Real">
+  <meta property="og:description" content="Crea una sesión, comparte el código QR y haced el pedido juntos en tiempo real. Sin registros. Proyecto independiente.">
+  <meta property="og:image" content="https://euromania.cabrasky.net/favicon.svg">
+  <meta property="og:image:width" content="100">
+  <meta property="og:image:height" content="100">
+  <meta property="og:locale" content="es_ES">
+  <meta property="og:site_name" content="Euromania — Pedidos Colaborativos">
+
+  <!-- ── Twitter Cards ────────────────────────── -->
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:url" content="https://euromania.cabrasky.net/">
+  <meta name="twitter:title" content="Euromania — Pedidos Colaborativos">
+  <meta name="twitter:description" content="Crea una sesión, comparte el código y haced el pedido juntos en tiempo real. Sin registros.">
+  <meta name="twitter:image" content="https://euromania.cabrasky.net/favicon.svg">
+
+  <!-- ── Iconos ────────────────────────────────── -->
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="shortcut icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/favicon.svg">
+  <link rel="manifest" href="/site.webmanifest">
+
+  <!-- ── JSON-LD Structured Data ──────────────── -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "Euromania — Pedidos Colaborativos",
+    "url": "https://euromania.cabrasky.net/",
+    "description": "Aplicación web para crear sesiones de pedidos en grupo en tiempo real. Cada persona añade sus montaditos en su perfil y todo se sincroniza al instante via WebSockets.",
+    "applicationCategory": "LifestyleApplication",
+    "operatingSystem": "All",
+    "browserRequirements": "Requires JavaScript",
+    "author": {
+      "@type": "Person",
+      "name": "Javier Mateos Mata",
+      "url": "https://github.com/cabrasky"
+    },
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "EUR"
+    }
+  }
+  </script>
+
+  <!-- ── BreadcrumbList ───────────────────────── -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      { "@type": "ListItem", "position": 1, "name": "Inicio", "item": "https://euromania.cabrasky.net/" },
+      { "@type": "ListItem", "position": 2, "name": "App de Pedidos", "item": "https://euromania.cabrasky.net/app" }
+    ]
+  }
+  </script>
+
+  <!-- ── Preconexiones ──────────────────────────── -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background: #f8fafc;
+      color: #1e293b;
+      line-height: 1.6;
+    }
+    .hero {
+      background: linear-gradient(135deg, #0f4c3a 0%, #1a7a5e 50%, #2d6a9f 100%);
+      color: #fff;
+      padding: 80px 24px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(circle at 30% 50%, rgba(255,255,255,.06) 0%, transparent 50%);
+      pointer-events: none;
+    }
+    .hero-inner { max-width: 720px; margin: 0 auto; position: relative; z-index: 1; }
+    .hero-icon { font-size: 48px; color: #fbbf24; margin-bottom: 16px; }
+    .hero h1 { font-size: clamp(32px, 6vw, 52px); font-weight: 800; letter-spacing: -1px; margin-bottom: 12px; }
+    .hero h1 i { color: #fbbf24; }
+    .hero p { font-size: 18px; opacity: .85; max-width: 600px; margin: 0 auto 28px; }
+    .hero-badge {
+      display: inline-block;
+      background: rgba(255,255,255,.12);
+      border: 1px solid rgba(255,255,255,.2);
+      padding: 6px 16px;
+      border-radius: 100px;
+      font-size: 13px;
+      font-weight: 600;
+      backdrop-filter: blur(4px);
+      margin-bottom: 24px;
+    }
+    .container { max-width: 960px; margin: 0 auto; padding: 0 24px; }
+    section { padding: 60px 0; }
+    section h2 {
+      font-size: 28px;
+      font-weight: 800;
+      text-align: center;
+      margin-bottom: 40px;
+      letter-spacing: -.5px;
+    }
+    section h2 i { color: #059669; margin-right: 10px; }
+    .features { background: #fff; }
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+    }
+    .feature-card {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 16px;
+      padding: 28px 24px;
+      text-align: center;
+      transition: transform .2s, box-shadow .2s;
+    }
+    .feature-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 8px 24px rgba(0,0,0,.06);
+    }
+    .feature-card .icon {
+      width: 56px;
+      height: 56px;
+      background: linear-gradient(135deg, #ecfdf5, #d1fae5);
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 16px;
+      font-size: 24px;
+      color: #059669;
+    }
+    .feature-card h3 { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+    .feature-card p { font-size: 14px; color: #64748b; }
+    .how-it-works { background: #f8fafc; }
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 24px;
+    }
+    .step {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 16px;
+      padding: 28px 24px;
+      text-align: center;
+    }
+    .step-num {
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, #0f4c3a, #1a7a5e);
+      color: #fff;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      font-weight: 800;
+      margin: 0 auto 14px;
+    }
+    .step h3 { font-size: 17px; font-weight: 700; margin-bottom: 6px; }
+    .step p { font-size: 13px; color: #64748b; }
+    .legal { background: #fff; border-top: 1px solid #e2e8f0; }
+    .legal-box {
+      background: #fffbeb;
+      border: 1px solid #fde68a;
+      border-radius: 16px;
+      padding: 28px 32px;
+      text-align: center;
+      max-width: 700px;
+      margin: 0 auto;
+    }
+    .legal-box i { font-size: 32px; color: #f59e0b; margin-bottom: 12px; }
+    .legal-box h3 { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+    .legal-box p { font-size: 14px; color: #92400e; line-height: 1.7; }
+    footer {
+      background: #1e293b;
+      color: #94a3b8;
+      padding: 40px 24px;
+      text-align: center;
+    }
+    footer .footer-inner { max-width: 600px; margin: 0 auto; }
+    footer .footer-icon { font-size: 28px; color: #fbbf24; margin-bottom: 8px; }
+    footer h3 { color: #fff; font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+    footer p { font-size: 13px; margin-bottom: 4px; }
+    footer a {
+      color: #6ee7b7;
+      text-decoration: none;
+      font-weight: 600;
+    }
+    footer a:hover { text-decoration: underline; }
+    footer .footer-divider {
+      width: 40px;
+      height: 2px;
+      background: #334155;
+      margin: 16px auto;
+      border-radius: 2px;
+    }
+    .cta-btn {
+      display: inline-block;
+      background: #fff;
+      color: #0f4c3a;
+      padding: 14px 36px;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 700;
+      text-decoration: none;
+      transition: transform .2s, box-shadow .2s;
+      box-shadow: 0 4px 16px rgba(0,0,0,.1);
+    }
+    .cta-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0,0,0,.15);
+    }
+    .cta-btn i { margin-right: 8px; }
+    @media (max-width: 640px) {
+      .hero { padding: 60px 20px; }
+      section { padding: 40px 0; }
+      .legal-box { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <section class="hero">
+    <div class="hero-inner">
+      <div class="hero-icon"><i class="fas fa-utensils"></i></div>
+      <div class="hero-badge"><i class="fas fa-code-branch"></i> Proyecto independiente</div>
+      <h1><i>Euromania</i><br>Pedidos Colaborativos</h1>
+      <p>Crea una sesión, comparte el código con tus amigos y haced el pedido juntos en tiempo real. Sin registros, sin complicaciones.</p>
+      <a href="/app" class="cta-btn"><i class="fas fa-right-to-bracket"></i> Entrar a la App</a>
+    </div>
+  </section>
+
+  <section class="features">
+    <div class="container">
+      <h2><i class="fas fa-star"></i> ¿Qué puedes hacer?</h2>
+      <div class="feature-grid">
+        <div class="feature-card">
+          <div class="icon"><i class="fas fa-users"></i></div>
+          <h3>Pedidos en grupo</h3>
+          <p>Cada persona añade sus montaditos en su propio perfil. Todo en una misma sesión.</p>
+        </div>
+        <div class="feature-card">
+          <div class="icon"><i class="fas fa-bolt"></i></div>
+          <h3>Tiempo real</h3>
+          <p>Los cambios se ven al instante gracias a WebSockets. Nada de recargar la página.</p>
+        </div>
+        <div class="feature-card">
+          <div class="icon"><i class="fas fa-qrcode"></i></div>
+          <h3>Código QR</h3>
+          <p>Comparte la sesión al instante. Escanea y únete sin escribir códigos largos.</p>
+        </div>
+        <div class="feature-card">
+          <div class="icon"><i class="fas fa-calculator"></i></div>
+          <h3>Resumen consolidado</h3>
+          <p>Agrupa todos los pedidos por producto para hacer el pedido al restaurante de un vistazo.</p>
+        </div>
+        <div class="feature-card">
+          <div class="icon"><i class="fas fa-shield-halved"></i></div>
+          <h3>Sin registro</h3>
+          <p>Solo necesitas un nombre. No pedimos email, teléfono ni contraseñas. Tus datos se borran en 5 días.</p>
+        </div>
+        <div class="feature-card">
+          <div class="icon"><i class="fas fa-chart-simple"></i></div>
+          <h3>Estadísticas anónimas</h3>
+          <p>Consulta métricas de uso totalmente anonimizadas. Sin seguimiento personal.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="how-it-works">
+    <div class="container">
+      <h2><i class="fas fa-circle-play"></i> Cómo funciona</h2>
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <h3>Crea una sesión</h3>
+          <p>Escribe tu nombre y pulsa "Crear sesión nueva". Se generará un código único de 6 caracteres.</p>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <h3>Comparte el código</h3>
+          <p>Envía el código o el QR a tus amigos. Pueden unirse desde cualquier dispositivo.</p>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <h3>Cada uno pide</h3>
+          <p>Cada persona añade sus montaditos favoritos del menú. Todo se sincroniza al instante.</p>
+        </div>
+        <div class="step">
+          <div class="step-num">4</div>
+          <h3>Pedido listo</h3>
+          <p>Usa el resumen consolidado para ver todo lo que hay que pedir, agrupado y con totales.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="legal">
+    <div class="container">
+      <div class="legal-box">
+        <i class="fas fa-scale-balanced"></i>
+        <h3>Aviso importante</h3>
+        <p>
+          Esta aplicación es un <strong>proyecto independiente y no oficial</strong>.
+          No está vinculada, patrocinada ni aprobada por la marca
+          <strong>100 Montaditos</strong> ni por <strong>Euromania</strong>.
+          Todos los nombres de productos y marcas registradas pertenecen a sus respectivos propietarios.
+          Esta herramienta se ofrece como un servicio de utilidad para facilitar
+          la toma de pedidos en grupo de forma colaborativa.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="footer-inner">
+      <div class="footer-icon"><i class="fas fa-utensils"></i></div>
+      <h3>Euromania — Pedidos Colaborativos</h3>
+      <p><i class="fas fa-code"></i> Desarrollado por <a href="https://github.com/cabrasky" target="_blank" rel="noopener">cabrasky</a> — Javier Mateos Mata</p>
+      <p><i class="fas fa-tools"></i> Proyecto personal de código abierto</p>
+      <div class="footer-divider"></div>
+      <p style="font-size: 12px; color: #64748b;">Los datos se almacenan únicamente durante 5 días. No compartimos información con terceros.</p>
+      <p style="font-size: 12px; color: #64748b; margin-top: 8px;"><i class="fas fa-shield"></i> Este proyecto no está afiliado a 100 Montaditos® ni Euromania®</p>
+      <p style="margin-top: 16px;"><a href="/app" style="font-size: 13px;"><i class="fas fa-arrow-right"></i> Ir a la aplicación</a></p>
+    </div>
+  </footer>
+</body>
+</html>
