@@ -24,7 +24,7 @@ function LandingPage() {
     /* @__PURE__ */ jsxs(Helmet, { children: [
       /* @__PURE__ */ jsx("title", { children: "Euromania — Pedidos Colaborativos en Tiempo Real" }),
       /* @__PURE__ */ jsx("meta", { name: "description", content: "Crea una sesión de pedidos en grupo, comparte el código con tus amigos y haced el pedido juntos en tiempo real. Sin registros, sin complicaciones. Proyecto independiente by cabrasky." }),
-      /* @__PURE__ */ jsx("meta", { name: "keywords", content: "euromania, pedidos colaborativos, montaditos, pedidos en grupo, comida, tiempo real, menú" }),
+      /* @__PURE__ */ jsx("meta", { name: "keywords", content: "euromania, 100 montaditos, 100mon, montaditos, pedidos colaborativos, pedidos en grupo, comida, tiempo real, menú, pedir montaditos online, menú 100 montaditos, cena grupo, comida rápida, montaditos online, pedido restaurante, montaditos a domicilio" }),
       /* @__PURE__ */ jsx("meta", { name: "author", content: "cabrasky — Javier Mateos Mata" }),
       /* @__PURE__ */ jsx("meta", { name: "robots", content: "index, follow" }),
       /* @__PURE__ */ jsx("link", { rel: "canonical", href: "https://euromania.cabrasky.net/" }),

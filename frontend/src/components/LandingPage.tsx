@@ -23,7 +23,7 @@ function LandingPage() {
       <Helmet>
         <title>Euromania — Pedidos Colaborativos en Tiempo Real</title>
         <meta name="description" content="Crea una sesión de pedidos en grupo, comparte el código con tus amigos y haced el pedido juntos en tiempo real. Sin registros, sin complicaciones. Proyecto independiente by cabrasky." />
-        <meta name="keywords" content="euromania, pedidos colaborativos, montaditos, pedidos en grupo, comida, tiempo real, menú" />
+        <meta name="keywords" content="euromania, 100 montaditos, 100mon, montaditos, pedidos colaborativos, pedidos en grupo, comida, tiempo real, menú, pedir montaditos online, menú 100 montaditos, cena grupo, comida rápida, montaditos online, pedido restaurante, montaditos a domicilio" />
         <meta name="author" content="cabrasky — Javier Mateos Mata" />
         <meta name="robots" content="index, follow" />
         <link rel="canonical" href="https://euromania.cabrasky.net/" />
