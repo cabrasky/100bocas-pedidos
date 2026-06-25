@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Person, Toast, WsMessage } from '../types';
 import {
-  getKey, getCatLabel, parsePrice, getPrice,
-  getCatIcon, findItem, setActiveMenu, getActiveMenu,
+  getKey, getCatLabel, getCatIcon, findItem, setActiveMenu, getActiveMenu,
 } from '../services/menuStore';
 import { CATEGORY_LABELS } from '../data/menuData';
 import {
@@ -21,6 +20,11 @@ import QRModal from '../components/modals/QRModal';
 import PrivacyModal from '../components/modals/PrivacyModal';
 import ToastContainer from '../components/ui/ToastContainer';
 import AdminPanel from '../components/admin/AdminPanel';
+import OrderViewModal from '../components/modals/OrderViewModal';
+import OrderHistoryModal from '../components/modals/OrderHistoryModal';
+import HistoryPanel from '../components/HistoryPanel';
+import SplitwiseModal from '../components/modals/SplitwiseModal';
+import { placeOrder } from '../services/api';
 
 let toastId = 0;
 
@@ -36,6 +40,9 @@ function OrderPage() {
   const [privacyOpen, setPrivacyOpen] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [orderViewMode, setOrderViewMode] = useState<'by-person' | 'consolidated' | null>(null);
+  const [showOrderHistory, setShowOrderHistory] = useState(false);
+  const [showSplitwise, setShowSplitwise] = useState(false);
   const wsRef = useRef<SessionWebSocket | null>(null);
   const prevPersonsRef = useRef<Person[]>([]);
 
@@ -269,107 +276,40 @@ function OrderPage() {
     addToast('📋 Código copiado: ' + sessionCode, 'info');
   }, [sessionCode, addToast]);
 
-  // Export order
-  const exportOrder = useCallback(() => {
+  // Show order view per person
+  const showOrderByPerson = useCallback(() => {
     if (persons.length === 0) { addToast('El pedido está vacío', 'info'); return; }
     const hasItems = persons.some(p => Object.keys(p.items).length > 0);
     if (!hasItems) { addToast('El pedido está vacío', 'info'); return; }
+    setOrderViewMode('by-person');
+  }, [persons, addToast]);
 
-    let lines: string[] = [];
-    let groupTotal = 0;
-    persons.forEach(p => {
-      const items = Object.values(p.items);
-      if (items.length === 0) return;
-      lines.push(`── ${p.name} ──`);
-      let pTotal = 0;
-      items.forEach(o => {
-        const pr = parsePrice(getPrice(o.category, o.item));
-        const sub = pr * o.qty;
-        pTotal += sub;
-        lines.push(`  ${o.item.code ? '#' + o.item.code + ' ' : ''}${o.item.name}  ${o.qty}ud = ${sub.toFixed(2).replace('.', ',')}€`);
-      });
-      lines.push(`  Subtotal: ${pTotal.toFixed(2).replace('.', ',')}€\n`);
-      groupTotal += pTotal;
-    });
-    lines.unshift(`📋 EUROMANIA — Sesión: ${sessionCode}`);
-    lines.unshift('═══════════════════════════════');
-    lines.push('═══════════════════════════════');
-    lines.push(`TOTAL GRUPO: ${groupTotal.toFixed(2).replace('.', ',')}€`);
-    const totalUd = persons.reduce((s, p) => s + Object.values(p.items).reduce((a, o) => a + o.qty, 0), 0);
-    lines.push(`${totalUd} ud — ${persons.filter(p => Object.keys(p.items).length > 0).length} personas`);
-    const text = lines.join('\n');
-    navigator.clipboard.writeText(text).then(() => addToast('📋 Copiado al portapapeles', 'info'))
-      .catch(() => {
-        const ta = document.createElement('textarea');
-        ta.value = text; document.body.appendChild(ta);
-        ta.select(); document.execCommand('copy');
-        document.body.removeChild(ta);
-        addToast('📋 Copiado', 'info');
-      });
-  }, [persons, sessionCode, addToast]);
-
-  // Consolidated order summary (grouped by item)
-  const exportConsolidated = useCallback(() => {
+  // Show consolidated order view
+  const showOrderConsolidated = useCallback(() => {
     if (persons.length === 0) { addToast('El pedido está vacío', 'info'); return; }
     const hasItems = persons.some(p => Object.keys(p.items).length > 0);
     if (!hasItems) { addToast('El pedido está vacío', 'info'); return; }
+    setOrderViewMode('consolidated');
+  }, [persons, addToast]);
 
-    const consolidated: Record<string, { name: string; code: string; qty: number; category: string; price: number }> = {};
-    persons.forEach(p => {
-      Object.entries(p.items).forEach(([key, o]) => {
-        if (consolidated[key]) {
-          consolidated[key].qty += o.qty;
-        } else {
-          consolidated[key] = {
-            name: o.item.name,
-            code: o.item.code || key,
-            qty: o.qty,
-            category: o.category,
-            price: parsePrice(getPrice(o.category, o.item)),
-          };
-        }
-      });
-    });
+  // Show Splitwise view
+  const showSplitwiseView = useCallback(() => {
+    if (persons.length === 0) { addToast('El pedido está vacío', 'info'); return; }
+    const hasItems = persons.some(p => Object.keys(p.items).length > 0);
+    if (!hasItems) { addToast('El pedido está vacío', 'info'); return; }
+    setShowSplitwise(true);
+  }, [persons, addToast]);
 
-    const catOrder = ['casa', 'clasicos', 'imprescindibles', 'especiales', 'montycookie', 'montydinas', 'montyperros', 'montyburgers', 'montypizzas', 'montygourmet', 'aperitivos', 'postres', 'bebidas', 'extras'];
-    const sorted = Object.entries(consolidated).sort((a, b) => {
-      const ca = catOrder.indexOf(a[1].category);
-      const cb = catOrder.indexOf(b[1].category);
-      if (ca !== cb) return ca - cb;
-      return a[1].code.localeCompare(b[1].code, undefined, { numeric: true });
-    });
-
-    let lines: string[] = [];
-    lines.push('═══════════════════════════════');
-    lines.push(`📋 PEDIDO — Sesión: ${sessionCode}`);
-    lines.push('═══════════════════════════════');
-    lines.push('');
-
-    let currentCat = '';
-    let totalUd = 0;
-    let totalPrice = 0;
-
-    sorted.forEach(([_, o]) => {
-      const catLabel = CATEGORY_LABELS[o.category] || o.category;
-      if (catLabel !== currentCat) {
-        currentCat = catLabel;
-        lines.push(`── ${catLabel} ──`);
-      }
-      const codeStr = o.code ? `#${o.code}` : '';
-      lines.push(`  ${codeStr} ${o.name}  ${o.qty}ud = ${(o.price * o.qty).toFixed(2).replace('.', ',')}€`);
-      totalUd += o.qty;
-      totalPrice += o.price * o.qty;
-    });
-
-    lines.push('');
-    lines.push('═══════════════════════════════');
-    lines.push(`TOTAL: ${totalPrice.toFixed(2).replace('.', ',')}€ — ${totalUd} ud`);
-    lines.push('═══════════════════════════════');
-
-    const text = lines.join('\n');
-    navigator.clipboard.writeText(text).then(() => addToast('📋 Pedido copiado al portapapeles', 'info'))
-      .catch(() => addToast('❌ Error al copiar', 'remove'));
-  }, [persons, sessionCode, addToast]);
+  // Place order — save to history and clear only current user's items
+  const handlePlaceOrder = useCallback(async () => {
+    if (!sessionCode || !myName) return;
+    try {
+      const result = await placeOrder(sessionCode, myName);
+      addToast(`✅ Pedido #${result.order_number} realizado (${result.total_items} ud)`, 'add', 4000);
+    } catch {
+      addToast('❌ Error al realizar el pedido', 'remove');
+    }
+  }, [sessionCode, myName, addToast]);
 
   const sessionUrl = `https://euromania.cabrasky.net/app?session=${sessionCode}`;
 
@@ -431,9 +371,13 @@ function OrderPage() {
           onChangeQty={changeQty}
           onRemoveItem={removeItemAction}
           onClear={handleClear}
-          onExport={exportOrder}
-          onExportConsolidated={exportConsolidated}
+          onExport={showOrderByPerson}
+          onExportConsolidated={showOrderConsolidated}
+          onExportSplitwise={showSplitwiseView}
+          onPlaceOrder={handlePlaceOrder}
+          onShowHistory={() => setShowOrderHistory(true)}
         />
+        <HistoryPanel sessionCode={sessionCode} />
       </div>
 
       <QRModal
@@ -448,6 +392,27 @@ function OrderPage() {
       />
 
       <ToastContainer toasts={toasts} />
+
+      <OrderViewModal
+        open={orderViewMode !== null}
+        onClose={() => setOrderViewMode(null)}
+        persons={persons}
+        sessionCode={sessionCode}
+        mode={orderViewMode || 'by-person'}
+      />
+
+      <OrderHistoryModal
+        open={showOrderHistory}
+        onClose={() => setShowOrderHistory(false)}
+        sessionCode={sessionCode}
+      />
+
+      <SplitwiseModal
+        open={showSplitwise}
+        onClose={() => setShowSplitwise(false)}
+        persons={persons}
+        sessionCode={sessionCode}
+      />
 
       {showAdmin && (
         <AdminPanel onClose={() => setShowAdmin(false)} />

@@ -27,16 +27,16 @@ function Header({ myName, sessionCode, onCopyCode, onShowQR, onLeave, onShowPriv
         <div className="code-badge" onClick={onCopyCode} title="Copiar código">
           <i className="fas fa-link"></i> {sessionCode}
         </div>
-        <button className="qr-btn" onClick={onShowQR} title="Mostrar código QR">
+        <button className="header-btn" onClick={onShowQR} title="Mostrar código QR">
           <i className="fas fa-qrcode"></i>
         </button>
-        <button className="whatsapp-btn" onClick={handleShareWhatsApp} title="Compartir por WhatsApp">
+        <button className="header-btn whatsapp" onClick={handleShareWhatsApp} title="Compartir por WhatsApp">
           <i className="fab fa-whatsapp"></i>
         </button>
-        <a href="https://github.com/cabrasky/euromania-pedidos" target="_blank" rel="noopener" className="github-btn" title="Ver en GitHub (código abierto)">
+        <a href="https://github.com/cabrasky/euromania-pedidos" target="_blank" rel="noopener" className="header-btn github" title="Ver en GitHub (código abierto)">
           <i className="fab fa-github"></i>
         </a>
-        <button className="privacy-btn" onClick={onShowPrivacy} title="Aviso legal y privacidad">
+        <button className="header-btn" onClick={onShowPrivacy} title="Aviso legal y privacidad">
           <i className="fas fa-shield-halved"></i>
         </button>
         <button className="leave-btn" onClick={onLeave} title="Salir de la sesión">

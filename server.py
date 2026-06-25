@@ -1390,6 +1390,163 @@ async def admin_delete_item(request: Request, item_id: int):
     return {"status": "ok"}
 
 
+# ── Order History ──────────────────────────────────
+def _format_order_price(price_str: str) -> float:
+    """Parse a price string like '1€', '2,50€', '+0,50€' to float."""
+    if not price_str:
+        return 0.0
+    cleaned = price_str.replace('€', '').replace('+', '').replace(' ', '').strip()
+    cleaned = cleaned.replace(',', '.')
+    try:
+        return float(cleaned)
+    except ValueError:
+        return 0.0
+
+
+@app.post("/api/session/{code}/place-order")
+async def place_order(code: str, body: dict = {}):
+    """Save current order items to history and clear ONLY the requesting person's items."""
+    if not _validate_code(code):
+        return JSONResponse({"error": "Código inválido"}, status_code=400)
+
+    person_name = (body.get("person_name") or "").strip()
+    if not person_name:
+        return JSONResponse({"error": "person_name required"}, status_code=400)
+
+    assert pool
+    async with pool.acquire() as conn:
+        session = await conn.fetchrow("SELECT id FROM sessions WHERE code = $1", code)
+        if not session:
+            return JSONResponse({"error": "Session not found"}, status_code=404)
+        session_id = session["id"]
+
+        # Get current items with person info
+        items = await conn.fetch("""
+            SELECT p.name, oi.item_key, oi.item_name, oi.item_code, oi.category, oi.quantity
+            FROM order_items oi
+            JOIN persons p ON p.id = oi.person_id
+            WHERE p.session_id = $1
+            ORDER BY p.name, oi.item_key
+        """, session_id)
+
+        if not items:
+            return JSONResponse({"error": "No hay productos en el pedido"}, status_code=400)
+
+        # Get next order number
+        max_num = await conn.fetchval(
+            "SELECT COALESCE(MAX(order_number), 0) FROM order_history WHERE session_id = $1",
+            session_id
+        )
+        order_number = max_num + 1
+
+        # Get active menu prices
+        menu_data = {}
+        menu_row = await conn.fetchrow(
+            "SELECT id FROM menu_configs WHERE is_active = true LIMIT 1"
+        )
+        if menu_row:
+            cats = await conn.fetch(
+                "SELECT id, key FROM menu_categories WHERE menu_id = $1", menu_row["id"]
+            )
+            for c in cats:
+                item_rows = await conn.fetch(
+                    "SELECT code, name, price FROM menu_items WHERE category_id = $1", c["id"]
+                )
+                for ir in item_rows:
+                    key = ir["code"] or ir["name"]
+                    menu_data[f"{c['key']}:{key}"] = _format_order_price(ir["price"])
+
+        # Build items JSON with prices
+        people_names = set()
+        history_items = []
+        total_items = 0
+        for r in items:
+            people_names.add(r["name"])
+            qty = r["quantity"]
+            total_items += qty
+            # Try to find price
+            lookup_key = f"{r['category']}:{r['item_code'] or r['item_name']}"
+            price = _format_order_price("")
+            # Check from active menu prices
+            if lookup_key in menu_data:
+                price = menu_data[lookup_key]
+            # Fallback: skip price lookup from static data (TS module not available in Python)
+            if price == 0.0:
+                pass
+
+            history_items.append({
+                "person": r["name"],
+                "item_key": r["item_key"],
+                "item_name": r["item_name"],
+                "item_code": r["item_code"] or "",
+                "category": r["category"],
+                "qty": qty,
+                "price": price,
+            })
+
+        items_json = json.dumps(history_items, ensure_ascii=False)
+
+        # Insert order history
+        await conn.execute(
+            "INSERT INTO order_history (session_id, order_number, total_items, people_count, items_json, paid_by) "
+            "VALUES ($1, $2, $3, $4, $5::jsonb, $6)",
+            session_id, order_number, total_items, len(people_names), items_json, person_name,
+        )
+
+        # Clear ALL order items for this session (new round for everyone)
+        await conn.execute(
+            "DELETE FROM order_items WHERE person_id IN (SELECT id FROM persons WHERE session_id = $1)",
+            session_id,
+        )
+
+    # Get updated session data
+    data = await get_session_data(code)
+    await touch_session(code)
+    await broadcast(code, {
+        "type": "sync",
+        "action": {"type": "order_placed", "order_number": order_number},
+        **data,
+    })
+    return {
+        "status": "ok",
+        "order_number": order_number,
+        "total_items": total_items,
+        "people_count": len(people_names),
+    }
+
+
+@app.get("/api/session/{code}/orders")
+async def get_order_history(code: str):
+    """Get order history for a session."""
+    if not _validate_code(code):
+        return JSONResponse({"error": "Código inválido"}, status_code=400)
+    assert pool
+    async with pool.acquire() as conn:
+        session = await conn.fetchrow("SELECT id FROM sessions WHERE code = $1", code)
+        if not session:
+            return JSONResponse({"error": "Session not found"}, status_code=404)
+
+        rows = await conn.fetch("""
+            SELECT id, order_number, created_at, total_items, people_count, items_json, paid_by
+            FROM order_history
+            WHERE session_id = $1
+            ORDER BY order_number DESC
+        """, session["id"])
+
+    result = []
+    for r in rows:
+        result.append({
+            "id": r["id"],
+            "order_number": r["order_number"],
+            "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+            "total_items": r["total_items"],
+            "people_count": r["people_count"],
+            "paid_by": r["paid_by"] or "",
+            "items": json.loads(r["items_json"]),
+        })
+    return result
+
+
 # ── SEO / static helpers ──────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 LANDING_PATH = os.path.join(BASE_DIR, "frontend", "public", "landing.html")

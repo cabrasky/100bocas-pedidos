@@ -26,6 +26,33 @@ function MenuGrid({ persons, currentPersonIdx, activeCat, searchTerm, onSetCateg
     return activeCat === 'all' ? cats : [activeCat];
   }, [activeCat, cats]);
 
+  // Flatten items with category headers for proper grid layout
+  const gridItems = useMemo(() => {
+    const items: Array<{ type: 'header' | 'card'; catKey?: string; item?: any; key?: string }> = [];
+    const q = searchTerm.toLowerCase();
+    
+    for (const catKey of filteredCats) {
+      const cat = MENU[catKey];
+      if (!cat?.items) continue;
+      
+      const filtered = cat.items.filter(i =>
+        !q || (i.code || '').includes(q) || i.name.toLowerCase().includes(q)
+      );
+      if (filtered.length === 0) continue;
+      
+      if (activeCat === 'all') {
+        items.push({ type: 'header', catKey });
+      }
+      
+      for (const item of filtered) {
+        items.push({ type: 'card', catKey, item, key: getKey(item) });
+      }
+    }
+    return items;
+  }, [filteredCats, searchTerm, activeCat]);
+
+  const hasResults = gridItems.length > 0;
+
   return (
     <>
       <div className="cats">
@@ -57,47 +84,37 @@ function MenuGrid({ persons, currentPersonIdx, activeCat, searchTerm, onSetCateg
       </div>
 
       <div className="menu-grid">
-        {filteredCats.map(catKey => {
-          const cat = MENU[catKey];
-          if (!cat?.items) return null;
-          const q = searchTerm.toLowerCase();
-          const filtered = cat.items.filter(i =>
-            !q || (i.code || '').includes(q) || i.name.toLowerCase().includes(q)
-          );
-          if (filtered.length === 0) return null;
-          return (
-            <div key={catKey} style={{ gridColumn: '1 / -1' }}>
-              {activeCat === 'all' && (
-                <div className="section-title">{getCatLabel(catKey)}</div>
-              )}
-              <div style={{ display: 'contents' }}>
-                {filtered.map(item => {
-                  const key = getKey(item);
-                  const inOrder = person?.items[key];
-                  const price = getPrice(catKey, item);
-                  return (
-                    <div
-                      key={key}
-                      className="menu-card"
-                      onClick={() => onToggleItem(catKey, key)}
-                    >
-                      {item.code && <span className="code">#{item.code}</span>}
-                      <div className="name">{item.name}</div>
-                      {item.ingredients && <div className="ingredients">{item.ingredients}</div>}
-                      {price && <div className="price">{price}</div>}
-                      {inOrder && <div className="added-badge">{inOrder.qty}</div>}
-                    </div>
-                  );
-                })}
+        {gridItems.map((gi, idx) => {
+          if (gi.type === 'header') {
+            return (
+              <div key={`h-${gi.catKey}`} className="section-title" style={{ gridColumn: '1 / -1' }}>
+                {getCatLabel(gi.catKey!)}
               </div>
+            );
+          }
+          const item = gi.item!;
+          const inOrder = person?.items[gi.key!];
+          const price = getPrice(gi.catKey!, item);
+          const code = item.code;
+          const name = item.name;
+          const ingredients = item.ingredients;
+          const selected = !!inOrder;
+          
+          return (
+            <div
+              key={gi.key}
+              className={`menu-card${selected ? ' selected' : ''}`}
+              onClick={() => onToggleItem(gi.catKey!, gi.key!)}
+            >
+              {code && <span className="code">#{code}</span>}
+              <div className="name">{name}</div>
+              {ingredients && <div className="ingredients">{ingredients}</div>}
+              {price && <div className="price">{price}</div>}
+              {inOrder && <div className="added-badge">{inOrder.qty}</div>}
             </div>
           );
         })}
-        {filteredCats.every(c => {
-          const cat = MENU[c];
-          const q = searchTerm.toLowerCase();
-          return !cat?.items?.some(i => !q || (i.code||'').includes(q) || i.name.toLowerCase().includes(q));
-        }) && (
+        {!hasResults && (
           <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: 40, color: '#94a3b8', fontWeight: 600 }}>
             Sin resultados
           </div>

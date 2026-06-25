@@ -1,4 +1,5 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useState } from 'react';
+import QRCode from 'qrcode';
 
 interface Props {
   open: boolean;
@@ -6,26 +7,18 @@ interface Props {
   sessionUrl: string;
 }
 
-declare const QRCode: any;
-
 function QRModal({ open, onClose, sessionUrl }: Props) {
-  const qrRef = useRef<HTMLDivElement>(null);
-  const qrInstance = useRef<any>(null);
+  const [qrDataUrl, setQrDataUrl] = useState('');
 
   useEffect(() => {
-    if (open && qrRef.current && !qrInstance.current) {
-      qrRef.current.innerHTML = '';
-      qrInstance.current = new QRCode(qrRef.current, {
-        text: sessionUrl,
-        width: 200,
-        height: 200,
-        colorDark: '#1e293b',
-        colorLight: '#ffffff',
-        correctLevel: QRCode.CorrectLevel.H,
-      });
-    }
-    if (!open) {
-      qrInstance.current = null;
+    if (open && sessionUrl) {
+      QRCode.toDataURL(sessionUrl, {
+        width: 256,
+        margin: 2,
+        color: { dark: '#1e293b', light: '#ffffff' },
+      }).then(setQrDataUrl).catch(() => {});
+    } else {
+      setQrDataUrl('');
     }
   }, [open, sessionUrl]);
 
@@ -43,7 +36,11 @@ function QRModal({ open, onClose, sessionUrl }: Props) {
         </div>
         <div className="modal-body">
           <div className="qr-code-wrap">
-            <div ref={qrRef}></div>
+            {qrDataUrl ? (
+              <img src={qrDataUrl} alt="QR Code" style={{ width: 200, height: 200 }} />
+            ) : (
+              <div style={{ width: 200, height: 200, background: '#f1f5f9', borderRadius: 12 }} />
+            )}
           </div>
           <div className="qr-link">
             <a href={sessionUrl} target="_blank" rel="noopener">{sessionUrl}</a>

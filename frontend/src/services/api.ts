@@ -74,3 +74,12 @@ export function getSessionCookie(): { code: string; name: string } | null {
 export function clearSessionCookie() {
   document.cookie = `${COOKIE_NAME}=;path=/;max-age=0;SameSite=Lax`;
 }
+
+// ── Order History ──────────────────────────────────
+export function placeOrder(code: string, personName: string): Promise<{ status: string; order_number: number; total_items: number; people_count: number }> {
+  return api('POST', `/api/session/${code}/place-order`, { person_name: personName });
+}
+
+export function getOrderHistory(code: string): Promise<any[]> {
+  return api('GET', `/api/session/${code}/orders`);
+}

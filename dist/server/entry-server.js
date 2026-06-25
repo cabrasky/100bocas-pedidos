@@ -5,6 +5,7 @@ import { jsxs, jsx, Fragment } from "react/jsx-runtime";
 import { Helmet, HelmetProvider } from "react-helmet-async";
 import { Link, Routes, Route, StaticRouter } from "react-router-dom";
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import QRCode from "qrcode";
 const FEATURES = [
   { icon: "fa-users", title: "Pedidos en grupo", desc: "Cada persona añade sus montaditos en su propio perfil. Todo en una misma sesión." },
   { icon: "fa-bolt", title: "Tiempo real", desc: "Los cambios se ven al instante gracias a WebSockets. Nada de recargar la página." },
@@ -474,6 +475,12 @@ function getSessionCookie() {
 }
 function clearSessionCookie() {
   document.cookie = `${COOKIE_NAME}=;path=/;max-age=0;SameSite=Lax`;
+}
+function placeOrder(code, personName) {
+  return api("POST", `/api/session/${code}/place-order`, { person_name: personName });
+}
+function getOrderHistory(code) {
+  return api("GET", `/api/session/${code}/orders`);
 }
 class SessionWebSocket {
   constructor(code, onMessage) {
@@ -1614,10 +1621,10 @@ Añade tus montaditos y coordinamos el pedido 🎉`
         " ",
         sessionCode
       ] }),
-      /* @__PURE__ */ jsx("button", { className: "qr-btn", onClick: onShowQR, title: "Mostrar código QR", children: /* @__PURE__ */ jsx("i", { className: "fas fa-qrcode" }) }),
-      /* @__PURE__ */ jsx("button", { className: "whatsapp-btn", onClick: handleShareWhatsApp, title: "Compartir por WhatsApp", children: /* @__PURE__ */ jsx("i", { className: "fab fa-whatsapp" }) }),
-      /* @__PURE__ */ jsx("a", { href: "https://github.com/cabrasky/euromania-pedidos", target: "_blank", rel: "noopener", className: "github-btn", title: "Ver en GitHub (código abierto)", children: /* @__PURE__ */ jsx("i", { className: "fab fa-github" }) }),
-      /* @__PURE__ */ jsx("button", { className: "privacy-btn", onClick: onShowPrivacy, title: "Aviso legal y privacidad", children: /* @__PURE__ */ jsx("i", { className: "fas fa-shield-halved" }) }),
+      /* @__PURE__ */ jsx("button", { className: "header-btn", onClick: onShowQR, title: "Mostrar código QR", children: /* @__PURE__ */ jsx("i", { className: "fas fa-qrcode" }) }),
+      /* @__PURE__ */ jsx("button", { className: "header-btn whatsapp", onClick: handleShareWhatsApp, title: "Compartir por WhatsApp", children: /* @__PURE__ */ jsx("i", { className: "fab fa-whatsapp" }) }),
+      /* @__PURE__ */ jsx("a", { href: "https://github.com/cabrasky/euromania-pedidos", target: "_blank", rel: "noopener", className: "header-btn github", title: "Ver en GitHub (código abierto)", children: /* @__PURE__ */ jsx("i", { className: "fab fa-github" }) }),
+      /* @__PURE__ */ jsx("button", { className: "header-btn", onClick: onShowPrivacy, title: "Aviso legal y privacidad", children: /* @__PURE__ */ jsx("i", { className: "fas fa-shield-halved" }) }),
       /* @__PURE__ */ jsxs("button", { className: "leave-btn", onClick: onLeave, title: "Salir de la sesión", children: [
         /* @__PURE__ */ jsx("i", { className: "fas fa-right-from-bracket" }),
         " Salir"
@@ -1675,6 +1682,26 @@ function MenuGrid({ persons, currentPersonIdx, activeCat, searchTerm, onSetCateg
   const filteredCats = useMemo(() => {
     return activeCat === "all" ? cats : [activeCat];
   }, [activeCat, cats]);
+  const gridItems = useMemo(() => {
+    const items = [];
+    const q = searchTerm.toLowerCase();
+    for (const catKey of filteredCats) {
+      const cat = MENU[catKey];
+      if (!(cat == null ? void 0 : cat.items)) continue;
+      const filtered = cat.items.filter(
+        (i) => !q || (i.code || "").includes(q) || i.name.toLowerCase().includes(q)
+      );
+      if (filtered.length === 0) continue;
+      if (activeCat === "all") {
+        items.push({ type: "header", catKey });
+      }
+      for (const item of filtered) {
+        items.push({ type: "card", catKey, item, key: getKey(item) });
+      }
+    }
+    return items;
+  }, [filteredCats, searchTerm, activeCat]);
+  const hasResults = gridItems.length > 0;
   return /* @__PURE__ */ jsxs(Fragment, { children: [
     /* @__PURE__ */ jsxs("div", { className: "cats", children: [
       /* @__PURE__ */ jsx(
@@ -1712,68 +1739,43 @@ function MenuGrid({ persons, currentPersonIdx, activeCat, searchTerm, onSetCateg
       )
     ] }),
     /* @__PURE__ */ jsxs("div", { className: "menu-grid", children: [
-      filteredCats.map((catKey) => {
-        const cat = MENU[catKey];
-        if (!(cat == null ? void 0 : cat.items)) return null;
-        const q = searchTerm.toLowerCase();
-        const filtered = cat.items.filter(
-          (i) => !q || (i.code || "").includes(q) || i.name.toLowerCase().includes(q)
+      gridItems.map((gi, idx) => {
+        if (gi.type === "header") {
+          return /* @__PURE__ */ jsx("div", { className: "section-title", style: { gridColumn: "1 / -1" }, children: getCatLabel(gi.catKey) }, `h-${gi.catKey}`);
+        }
+        const item = gi.item;
+        const inOrder = person == null ? void 0 : person.items[gi.key];
+        const price = getPrice(gi.catKey, item);
+        const code = item.code;
+        const name = item.name;
+        const ingredients = item.ingredients;
+        const selected = !!inOrder;
+        return /* @__PURE__ */ jsxs(
+          "div",
+          {
+            className: `menu-card${selected ? " selected" : ""}`,
+            onClick: () => onToggleItem(gi.catKey, gi.key),
+            children: [
+              code && /* @__PURE__ */ jsxs("span", { className: "code", children: [
+                "#",
+                code
+              ] }),
+              /* @__PURE__ */ jsx("div", { className: "name", children: name }),
+              ingredients && /* @__PURE__ */ jsx("div", { className: "ingredients", children: ingredients }),
+              price && /* @__PURE__ */ jsx("div", { className: "price", children: price }),
+              inOrder && /* @__PURE__ */ jsx("div", { className: "added-badge", children: inOrder.qty })
+            ]
+          },
+          gi.key
         );
-        if (filtered.length === 0) return null;
-        return /* @__PURE__ */ jsxs("div", { style: { gridColumn: "1 / -1" }, children: [
-          activeCat === "all" && /* @__PURE__ */ jsx("div", { className: "section-title", children: getCatLabel(catKey) }),
-          /* @__PURE__ */ jsx("div", { style: { display: "contents" }, children: filtered.map((item) => {
-            const key = getKey(item);
-            const inOrder = person == null ? void 0 : person.items[key];
-            const price = getPrice(catKey, item);
-            return /* @__PURE__ */ jsxs(
-              "div",
-              {
-                className: "menu-card",
-                onClick: () => onToggleItem(catKey, key),
-                children: [
-                  item.code && /* @__PURE__ */ jsxs("span", { className: "code", children: [
-                    "#",
-                    item.code
-                  ] }),
-                  /* @__PURE__ */ jsx("div", { className: "name", children: item.name }),
-                  item.ingredients && /* @__PURE__ */ jsx("div", { className: "ingredients", children: item.ingredients }),
-                  price && /* @__PURE__ */ jsx("div", { className: "price", children: price }),
-                  inOrder && /* @__PURE__ */ jsx("div", { className: "added-badge", children: inOrder.qty })
-                ]
-              },
-              key
-            );
-          }) })
-        ] }, catKey);
       }),
-      filteredCats.every((c) => {
-        var _a;
-        const cat = MENU[c];
-        const q = searchTerm.toLowerCase();
-        return !((_a = cat == null ? void 0 : cat.items) == null ? void 0 : _a.some((i) => !q || (i.code || "").includes(q) || i.name.toLowerCase().includes(q)));
-      }) && /* @__PURE__ */ jsx("div", { style: { gridColumn: "1 / -1", textAlign: "center", padding: 40, color: "#94a3b8", fontWeight: 600 }, children: "Sin resultados" })
+      !hasResults && /* @__PURE__ */ jsx("div", { style: { gridColumn: "1 / -1", textAlign: "center", padding: 40, color: "#94a3b8", fontWeight: 600 }, children: "Sin resultados" })
     ] })
   ] });
 }
-function OrderPanel({ currentPerson, persons, onChangeQty, onRemoveItem, onClear, onExport, onExportConsolidated }) {
-  const MOBILE_BREAKPOINT = 860;
-  const [collapsed, setCollapsed] = useState(() => window.innerWidth < MOBILE_BREAKPOINT);
-  const [userToggled, setUserToggled] = useState(false);
-  useEffect(() => {
-    const onResize = () => {
-      const isMobile = window.innerWidth < MOBILE_BREAKPOINT;
-      if (!userToggled) {
-        setCollapsed(isMobile);
-      }
-    };
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, [userToggled]);
-  const toggleCollapse = () => {
-    setUserToggled(true);
-    setCollapsed((prev) => !prev);
-  };
+function OrderPanel({ currentPerson, persons, onChangeQty, onRemoveItem, onClear, onExport, onExportConsolidated, onExportSplitwise, onPlaceOrder, onShowHistory }) {
+  const MOBILE = useMemo(() => window.innerWidth < 860, []);
+  const [panelOpen, setPanelOpen] = useState(false);
   const items = useMemo(() => currentPerson ? Object.values(currentPerson.items) : [], [currentPerson]);
   const count = useMemo(() => items.reduce((s, o) => s + o.qty, 0), [items]);
   const personTotal = useMemo(
@@ -1796,133 +1798,225 @@ function OrderPanel({ currentPerson, persons, onChangeQty, onRemoveItem, onClear
     () => Object.values(catTotals).reduce((s, c) => s + c.price, 0),
     [catTotals]
   );
-  return /* @__PURE__ */ jsxs("div", { className: `order-panel ${collapsed ? "collapsed" : ""}`, children: [
-    /* @__PURE__ */ jsx(
-      "button",
-      {
-        className: "drag-handle",
-        onClick: toggleCollapse,
-        "aria-label": collapsed ? "Abrir pedido" : "Cerrar pedido",
-        children: /* @__PURE__ */ jsx("span", { className: "drag-handle-bar" })
-      }
-    ),
-    /* @__PURE__ */ jsxs("div", { className: "order-panel-header", children: [
-      /* @__PURE__ */ jsx("div", { className: "op-avatar", children: /* @__PURE__ */ jsx("i", { className: "fas fa-user" }) }),
-      /* @__PURE__ */ jsx("h2", { children: (currentPerson == null ? void 0 : currentPerson.name) || "—" }),
-      /* @__PURE__ */ jsx("span", { className: "op-count", children: count })
-    ] }),
-    /* @__PURE__ */ jsx("div", { className: "order-sub", children: items.length === 0 ? "Toca un producto para añadirlo" : `${count} producto${count !== 1 ? "s" : ""}` }),
-    /* @__PURE__ */ jsx("div", { className: "order-items", children: items.length === 0 ? /* @__PURE__ */ jsxs("div", { className: "order-empty", children: [
-      /* @__PURE__ */ jsx("i", { className: "fas fa-cart-plus" }),
-      /* @__PURE__ */ jsx("p", { children: "Sin productos" })
-    ] }) : items.map((o) => {
-      const key = getKey(o.item);
-      return /* @__PURE__ */ jsxs("div", { className: "order-item", children: [
-        /* @__PURE__ */ jsx("span", { className: "oi-code", children: o.item.code ? "#" + o.item.code : "" }),
-        /* @__PURE__ */ jsx("div", { className: "oi-info", children: /* @__PURE__ */ jsx("div", { className: "oi-name", children: o.item.name }) }),
-        /* @__PURE__ */ jsxs("div", { className: "oi-qty", children: [
-          /* @__PURE__ */ jsx("button", { onClick: () => onChangeQty(key, -1), children: /* @__PURE__ */ jsx("i", { className: "fas fa-minus" }) }),
-          /* @__PURE__ */ jsx("span", { className: "qty-num", children: o.qty }),
-          /* @__PURE__ */ jsx("button", { onClick: () => onChangeQty(key, 1), children: /* @__PURE__ */ jsx("i", { className: "fas fa-plus" }) })
-        ] }),
-        /* @__PURE__ */ jsx("button", { className: "oi-remove", onClick: () => onRemoveItem(key), children: /* @__PURE__ */ jsx("i", { className: "fas fa-xmark" }) })
-      ] }, key);
-    }) }),
-    items.length > 0 && /* @__PURE__ */ jsxs(Fragment, { children: [
-      /* @__PURE__ */ jsxs("div", { className: "order-person-total", children: [
-        /* @__PURE__ */ jsx("span", { children: "Total persona" }),
-        /* @__PURE__ */ jsxs("span", { children: [
-          personTotal.toFixed(2).replace(".", ","),
-          "€"
-        ] })
+  const hasItems = items.length > 0;
+  const groupHasItems = persons.some((p) => Object.keys(p.items).length > 0);
+  const closePanel = useCallback(() => setPanelOpen(false), []);
+  if (!MOBILE) {
+    return /* @__PURE__ */ jsxs("div", { className: "order-panel", children: [
+      /* @__PURE__ */ jsxs("div", { className: "order-panel-header", children: [
+        /* @__PURE__ */ jsx("div", { className: "op-avatar", children: /* @__PURE__ */ jsx("i", { className: "fas fa-user" }) }),
+        /* @__PURE__ */ jsx("h2", { children: (currentPerson == null ? void 0 : currentPerson.name) || "—" }),
+        /* @__PURE__ */ jsx("span", { className: "op-count", children: count }),
+        /* @__PURE__ */ jsx("button", { className: "op-history-btn", onClick: onShowHistory, title: "Historial de pedidos", children: /* @__PURE__ */ jsx("i", { className: "fas fa-clock-rotate" }) })
       ] }),
-      /* @__PURE__ */ jsxs("div", { className: "group-summary", children: [
-        /* @__PURE__ */ jsx("div", { style: { fontSize: 11, fontWeight: 700, color: "#64748b", marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }, children: "Resumen grupo" }),
-        /* @__PURE__ */ jsx("div", { id: "groupRows", children: persons.map((p, i) => {
-          const total = Object.values(p.items).reduce((s, o) => s + parsePrice(getPrice(o.category, o.item)) * o.qty, 0);
-          const active = p.name === (currentPerson == null ? void 0 : currentPerson.name);
-          return /* @__PURE__ */ jsxs("div", { className: "group-row", style: active ? { background: "#eff6ff", borderRadius: 8, padding: "4px 8px" } : {}, children: [
-            /* @__PURE__ */ jsxs("span", { className: "gr-name", children: [
-              active ? "▶ " : "",
-              p.name
-            ] }),
-            /* @__PURE__ */ jsxs("span", { className: "gr-total", children: [
-              total.toFixed(2).replace(".", ","),
-              "€"
-            ] })
-          ] }, p.name);
-        }) }),
-        Object.keys(catTotals).length > 0 && /* @__PURE__ */ jsxs("div", { style: { marginTop: 10, paddingTop: 10, borderTop: "1px solid #e2e8f0" }, children: [
-          /* @__PURE__ */ jsxs("div", { style: { fontSize: 11, fontWeight: 700, color: "#64748b", marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }, children: [
-            /* @__PURE__ */ jsx("i", { className: "fas fa-layer-group", style: { marginRight: 4 } }),
-            "Por categoría"
+      /* @__PURE__ */ jsx("div", { className: "order-sub", children: items.length === 0 ? "Toca un producto para añadirlo" : `${count} producto${count !== 1 ? "s" : ""}` }),
+      /* @__PURE__ */ jsx("div", { className: "order-items", children: items.length === 0 ? /* @__PURE__ */ jsxs("div", { className: "order-empty", children: [
+        /* @__PURE__ */ jsx("i", { className: "fas fa-cart-plus" }),
+        /* @__PURE__ */ jsx("p", { children: "Sin productos" })
+      ] }) : items.map((o) => {
+        const key = getKey(o.item);
+        return /* @__PURE__ */ jsxs("div", { className: "order-item", children: [
+          /* @__PURE__ */ jsx("span", { className: "oi-code", children: o.item.code ? "#" + o.item.code : "" }),
+          /* @__PURE__ */ jsx("div", { className: "oi-info", children: /* @__PURE__ */ jsx("div", { className: "oi-name", children: o.item.name }) }),
+          /* @__PURE__ */ jsxs("div", { className: "oi-qty", children: [
+            /* @__PURE__ */ jsx("button", { onClick: () => onChangeQty(key, -1), children: /* @__PURE__ */ jsx("i", { className: "fas fa-minus" }) }),
+            /* @__PURE__ */ jsx("span", { className: "qty-num", children: o.qty }),
+            /* @__PURE__ */ jsx("button", { onClick: () => onChangeQty(key, 1), children: /* @__PURE__ */ jsx("i", { className: "fas fa-plus" }) })
           ] }),
-          Object.entries(catTotals).map(([catKey, ct]) => {
-            const label = CATEGORY_LABELS[catKey] || catKey;
-            return /* @__PURE__ */ jsxs("div", { className: "group-row", style: { fontSize: 12 }, children: [
-              /* @__PURE__ */ jsx("span", { className: "gr-name", children: label }),
-              /* @__PURE__ */ jsxs("span", { className: "gr-total", children: [
-                ct.ud,
-                " ud · ",
-                ct.price.toFixed(2).replace(".", ","),
-                "€"
-              ] })
-            ] }, catKey);
-          })
-        ] }),
-        /* @__PURE__ */ jsxs("div", { className: "group-total-row", children: [
-          /* @__PURE__ */ jsx("span", { className: "gt-label", children: "Total grupo" }),
+          /* @__PURE__ */ jsx("button", { className: "oi-remove", onClick: () => onRemoveItem(key), children: /* @__PURE__ */ jsx("i", { className: "fas fa-xmark" }) })
+        ] }, key);
+      }) }),
+      hasItems && /* @__PURE__ */ jsxs(Fragment, { children: [
+        /* @__PURE__ */ jsxs("div", { className: "order-person-total", children: [
+          /* @__PURE__ */ jsx("span", { children: "Total persona" }),
           /* @__PURE__ */ jsxs("span", { children: [
-            groupTotal.toFixed(2).replace(".", ","),
+            personTotal.toFixed(2).replace(".", ","),
             "€"
           ] })
+        ] }),
+        /* @__PURE__ */ jsxs("div", { className: "group-summary", children: [
+          /* @__PURE__ */ jsx("div", { className: "gs-title", children: "Resumen grupo" }),
+          persons.map((p, i) => {
+            const total = Object.values(p.items).reduce((s, o) => s + parsePrice(getPrice(o.category, o.item)) * o.qty, 0);
+            const active = p.name === (currentPerson == null ? void 0 : currentPerson.name);
+            return /* @__PURE__ */ jsxs("div", { className: "group-row", style: active ? { background: "#eff6ff", borderRadius: 8, padding: "4px 8px" } : {}, children: [
+              /* @__PURE__ */ jsxs("span", { className: "gr-name", children: [
+                active ? "▶ " : "",
+                p.name
+              ] }),
+              /* @__PURE__ */ jsxs("span", { className: "gr-total", children: [
+                total.toFixed(2).replace(".", ","),
+                "€"
+              ] })
+            ] }, p.name);
+          }),
+          /* @__PURE__ */ jsxs("div", { className: "group-total-row", children: [
+            /* @__PURE__ */ jsx("span", { className: "gt-label", children: "Total grupo" }),
+            /* @__PURE__ */ jsxs("span", { children: [
+              groupTotal.toFixed(2).replace(".", ","),
+              "€"
+            ] })
+          ] })
         ] })
+      ] }),
+      /* @__PURE__ */ jsxs("div", { className: "order-actions", children: [
+        /* @__PURE__ */ jsxs("button", { className: "btn-clear", onClick: onClear, children: [
+          /* @__PURE__ */ jsx("i", { className: "fas fa-trash-can" }),
+          " ",
+          /* @__PURE__ */ jsx("span", { children: "Vaciar" })
+        ] }),
+        /* @__PURE__ */ jsxs("button", { className: "btn-export", onClick: onExport, children: [
+          /* @__PURE__ */ jsx("i", { className: "fas fa-clipboard-list" }),
+          " ",
+          /* @__PURE__ */ jsx("span", { children: "Personas" })
+        ] }),
+        /* @__PURE__ */ jsxs(
+          "button",
+          {
+            className: "btn-export",
+            onClick: onExportConsolidated,
+            style: { background: "#f0fdf4", border: "1px solid #86efac", color: "#166534" },
+            children: [
+              /* @__PURE__ */ jsx("i", { className: "fas fa-list" }),
+              " ",
+              /* @__PURE__ */ jsx("span", { children: "Pedido" })
+            ]
+          }
+        ),
+        /* @__PURE__ */ jsx(
+          "button",
+          {
+            className: "btn-splitwise",
+            onClick: onExportSplitwise,
+            style: { background: "#fefce8", border: "1px solid #fde68a", color: "#92400e" },
+            children: /* @__PURE__ */ jsx("i", { className: "fas fa-hand-holding-dollar" })
+          }
+        )
+      ] }),
+      groupHasItems && /* @__PURE__ */ jsxs("button", { className: "btn-place-order", onClick: onPlaceOrder, children: [
+        /* @__PURE__ */ jsx("i", { className: "fas fa-check-circle" }),
+        " Hacer pedido"
       ] })
+    ] });
+  }
+  return /* @__PURE__ */ jsxs(Fragment, { children: [
+    !panelOpen && /* @__PURE__ */ jsxs("button", { className: "mobile-fab", onClick: () => setPanelOpen(true), children: [
+      /* @__PURE__ */ jsx("i", { className: "fas fa-bag-shopping" }),
+      count > 0 && /* @__PURE__ */ jsx("span", { className: "mobile-fab-badge", children: count })
     ] }),
-    /* @__PURE__ */ jsxs("div", { className: "order-actions", children: [
-      /* @__PURE__ */ jsxs("button", { className: "btn-clear", onClick: onClear, children: [
-        /* @__PURE__ */ jsx("i", { className: "fas fa-trash-can" }),
-        " ",
-        /* @__PURE__ */ jsx("span", { children: "Vaciar" })
+    panelOpen && /* @__PURE__ */ jsxs("div", { className: "mobile-order-overlay", children: [
+      /* @__PURE__ */ jsxs("div", { className: "mobile-order-header", children: [
+        /* @__PURE__ */ jsx("div", { className: "op-avatar", children: /* @__PURE__ */ jsx("i", { className: "fas fa-user" }) }),
+        /* @__PURE__ */ jsx("h2", { children: (currentPerson == null ? void 0 : currentPerson.name) || "—" }),
+        /* @__PURE__ */ jsx("span", { className: "op-count", children: count }),
+        /* @__PURE__ */ jsx("button", { className: "mobile-order-close", onClick: closePanel, children: /* @__PURE__ */ jsx("i", { className: "fas fa-xmark" }) })
       ] }),
-      /* @__PURE__ */ jsxs("button", { className: "btn-export", onClick: onExport, children: [
-        /* @__PURE__ */ jsx("i", { className: "fas fa-clipboard-list" }),
-        " ",
-        /* @__PURE__ */ jsx("span", { children: "Personas" })
-      ] }),
-      /* @__PURE__ */ jsxs(
-        "button",
-        {
-          className: "btn-export",
-          onClick: onExportConsolidated,
-          style: { background: "#f0fdf4", border: "1px solid #86efac", color: "#166534" },
-          children: [
-            /* @__PURE__ */ jsx("i", { className: "fas fa-list" }),
-            " ",
-            /* @__PURE__ */ jsx("span", { children: "Pedido" })
-          ]
-        }
-      )
+      !hasItems ? /* @__PURE__ */ jsxs("div", { className: "order-empty", style: { flex: 1 }, children: [
+        /* @__PURE__ */ jsx("i", { className: "fas fa-cart-plus" }),
+        /* @__PURE__ */ jsx("p", { children: "Sin productos — toca un producto para añadirlo" })
+      ] }) : /* @__PURE__ */ jsx("div", { className: "mobile-order-body", children: items.map((o) => {
+        const key = getKey(o.item);
+        const pr = parsePrice(getPrice(o.category, o.item));
+        return /* @__PURE__ */ jsxs("div", { className: "order-item", children: [
+          /* @__PURE__ */ jsxs("div", { className: "oi-info", children: [
+            /* @__PURE__ */ jsx("div", { className: "oi-name", children: o.item.name }),
+            /* @__PURE__ */ jsxs("div", { style: { fontSize: 11, color: "#94a3b8" }, children: [
+              pr.toFixed(2).replace(".", ","),
+              "€"
+            ] })
+          ] }),
+          /* @__PURE__ */ jsxs("div", { className: "oi-qty", children: [
+            /* @__PURE__ */ jsx("button", { onClick: () => onChangeQty(key, -1), children: /* @__PURE__ */ jsx("i", { className: "fas fa-minus" }) }),
+            /* @__PURE__ */ jsx("span", { className: "qty-num", children: o.qty }),
+            /* @__PURE__ */ jsx("button", { onClick: () => onChangeQty(key, 1), children: /* @__PURE__ */ jsx("i", { className: "fas fa-plus" }) })
+          ] }),
+          /* @__PURE__ */ jsx("button", { className: "oi-remove", onClick: () => onRemoveItem(key), children: /* @__PURE__ */ jsx("i", { className: "fas fa-xmark" }) })
+        ] }, key);
+      }) }),
+      /* @__PURE__ */ jsxs("div", { className: "mobile-order-footer", children: [
+        hasItems && /* @__PURE__ */ jsxs(Fragment, { children: [
+          /* @__PURE__ */ jsxs("div", { className: "mobile-order-total", children: [
+            /* @__PURE__ */ jsx("span", { children: (currentPerson == null ? void 0 : currentPerson.name) || "—" }),
+            /* @__PURE__ */ jsxs("span", { className: "mob-total-price", children: [
+              personTotal.toFixed(2).replace(".", ","),
+              "€"
+            ] })
+          ] }),
+          /* @__PURE__ */ jsxs("div", { className: "mobile-order-total", style: { borderTop: "1px solid #e2e8f0", paddingTop: 8, marginTop: 4 }, children: [
+            /* @__PURE__ */ jsx("span", { style: { fontWeight: 700 }, children: "Grupo" }),
+            /* @__PURE__ */ jsxs("span", { className: "mob-total-price", children: [
+              groupTotal.toFixed(2).replace(".", ","),
+              "€"
+            ] })
+          ] })
+        ] }),
+        /* @__PURE__ */ jsxs("div", { className: "mobile-order-actions", children: [
+          groupHasItems && /* @__PURE__ */ jsxs(
+            "button",
+            {
+              className: "btn-place-order",
+              onClick: () => {
+                closePanel();
+                onPlaceOrder();
+              },
+              style: { flex: 1.5, padding: 11, borderRadius: 12, border: "none", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit", background: "linear-gradient(135deg, #059669, #10b981)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 },
+              children: [
+                /* @__PURE__ */ jsx("i", { className: "fas fa-check-circle" }),
+                " Pedir"
+              ]
+            }
+          ),
+          /* @__PURE__ */ jsx("button", { className: "btn-clear", onClick: () => {
+            closePanel();
+            onClear();
+          }, style: { flex: 1 }, children: /* @__PURE__ */ jsx("i", { className: "fas fa-trash-can" }) }),
+          /* @__PURE__ */ jsx("button", { className: "btn-export mob-btn-export", onClick: () => {
+            closePanel();
+            onExport();
+          }, children: /* @__PURE__ */ jsx("i", { className: "fas fa-clipboard-list" }) }),
+          /* @__PURE__ */ jsx(
+            "button",
+            {
+              className: "mob-btn-splitwise",
+              onClick: () => {
+                closePanel();
+                onExportSplitwise();
+              },
+              style: { background: "#fef3c7", border: "none", color: "#92400e", borderRadius: 12, fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center" },
+              children: /* @__PURE__ */ jsx("i", { className: "fas fa-hand-holding-dollar" })
+            }
+          )
+        ] }),
+        /* @__PURE__ */ jsx("div", { style: { textAlign: "center", marginTop: 6 }, children: /* @__PURE__ */ jsxs(
+          "button",
+          {
+            onClick: () => {
+              closePanel();
+              onShowHistory();
+            },
+            style: { background: "none", border: "none", color: "#94a3b8", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", padding: "4px 8px", display: "inline-flex", alignItems: "center", gap: 4 },
+            children: [
+              /* @__PURE__ */ jsx("i", { className: "fas fa-clock-rotate" }),
+              " Historial"
+            ]
+          }
+        ) })
+      ] })
     ] })
   ] });
 }
 function QRModal({ open, onClose, sessionUrl }) {
-  const qrRef = useRef(null);
-  const qrInstance = useRef(null);
+  const [qrDataUrl, setQrDataUrl] = useState("");
   useEffect(() => {
-    if (open && qrRef.current && !qrInstance.current) {
-      qrRef.current.innerHTML = "";
-      qrInstance.current = new QRCode(qrRef.current, {
-        text: sessionUrl,
-        width: 200,
-        height: 200,
-        colorDark: "#1e293b",
-        colorLight: "#ffffff",
-        correctLevel: QRCode.CorrectLevel.H
+    if (open && sessionUrl) {
+      QRCode.toDataURL(sessionUrl, {
+        width: 256,
+        margin: 2,
+        color: { dark: "#1e293b", light: "#ffffff" }
+      }).then(setQrDataUrl).catch(() => {
       });
-    }
-    if (!open) {
-      qrInstance.current = null;
+    } else {
+      setQrDataUrl("");
     }
   }, [open, sessionUrl]);
   if (!open) return null;
@@ -1933,7 +2027,7 @@ function QRModal({ open, onClose, sessionUrl }) {
       /* @__PURE__ */ jsx("button", { className: "modal-close", onClick: onClose, children: /* @__PURE__ */ jsx("i", { className: "fas fa-xmark" }) })
     ] }),
     /* @__PURE__ */ jsxs("div", { className: "modal-body", children: [
-      /* @__PURE__ */ jsx("div", { className: "qr-code-wrap", children: /* @__PURE__ */ jsx("div", { ref: qrRef }) }),
+      /* @__PURE__ */ jsx("div", { className: "qr-code-wrap", children: qrDataUrl ? /* @__PURE__ */ jsx("img", { src: qrDataUrl, alt: "QR Code", style: { width: 200, height: 200 } }) : /* @__PURE__ */ jsx("div", { style: { width: 200, height: 200, background: "#f1f5f9", borderRadius: 12 } }) }),
       /* @__PURE__ */ jsx("div", { className: "qr-link", children: /* @__PURE__ */ jsx("a", { href: sessionUrl, target: "_blank", rel: "noopener", children: sessionUrl }) })
     ] })
   ] }) });
@@ -2052,6 +2146,570 @@ function ToastContainer({ toasts }) {
     ] }, t.id);
   }) });
 }
+const CAT_ORDER = ["casa", "clasicos", "imprescindibles", "especiales", "montycookie", "montydinas", "montyperros", "montyburgers", "montypizzas", "montygourmet", "aperitivos", "postres", "bebidas", "extras"];
+function OrderViewModal({ open, onClose, persons, sessionCode, mode }) {
+  const { sections, totalUd, totalPrice } = useMemo(() => {
+    let totalUd2 = 0;
+    let totalPrice2 = 0;
+    if (mode === "by-person") {
+      const sections2 = [];
+      persons.forEach((p) => {
+        const items = Object.values(p.items);
+        if (items.length === 0) return;
+        let subtotal = 0;
+        const sectionItems = items.map((o) => {
+          const pr = parsePrice(getPrice(o.category, o.item));
+          const sub = pr * o.qty;
+          subtotal += sub;
+          totalUd2 += o.qty;
+          totalPrice2 += sub;
+          return {
+            code: o.item.code || "",
+            name: o.item.name,
+            qty: o.qty,
+            price: sub
+          };
+        });
+        sections2.push({ title: p.name, items: sectionItems, subtotal });
+      });
+      return { sections: sections2, totalUd: totalUd2, totalPrice: totalPrice2 };
+    } else {
+      const consolidated = {};
+      persons.forEach((p) => {
+        Object.entries(p.items).forEach(([key, o]) => {
+          if (consolidated[key]) {
+            consolidated[key].qty += o.qty;
+          } else {
+            consolidated[key] = {
+              name: o.item.name,
+              code: o.item.code || key,
+              qty: o.qty,
+              category: o.category,
+              price: parsePrice(getPrice(o.category, o.item))
+            };
+          }
+        });
+      });
+      const sorted = Object.entries(consolidated).sort((a, b) => {
+        const ca = CAT_ORDER.indexOf(a[1].category);
+        const cb = CAT_ORDER.indexOf(b[1].category);
+        if (ca !== cb) return ca - cb;
+        return a[1].code.localeCompare(b[1].code, void 0, { numeric: true });
+      });
+      const sections2 = [];
+      let currentCat = "";
+      let currentItems = [];
+      sorted.forEach(([_, o]) => {
+        const catLabel = CATEGORY_LABELS[o.category] || o.category;
+        if (catLabel !== currentCat) {
+          if (currentItems.length > 0) {
+            sections2.push({ title: currentCat, items: currentItems, subtotal: 0 });
+          }
+          currentCat = catLabel;
+          currentItems = [];
+        }
+        const sub = o.price * o.qty;
+        totalUd2 += o.qty;
+        totalPrice2 += sub;
+        currentItems.push({
+          code: o.code,
+          name: o.name,
+          qty: o.qty,
+          price: sub
+        });
+      });
+      if (currentItems.length > 0) {
+        sections2.push({ title: currentCat, items: currentItems, subtotal: 0 });
+      }
+      return { sections: sections2, totalUd: totalUd2, totalPrice: totalPrice2 };
+    }
+  }, [persons, mode]);
+  if (!open) return null;
+  return /* @__PURE__ */ jsx("div", { className: "modal-overlay", onClick: onClose, children: /* @__PURE__ */ jsxs("div", { className: "modal-box order-view-box", onClick: (e) => e.stopPropagation(), children: [
+    /* @__PURE__ */ jsxs("div", { className: "modal-header", children: [
+      /* @__PURE__ */ jsx("i", { className: `fas ${mode === "by-person" ? "fa-clipboard-list" : "fa-list"}` }),
+      /* @__PURE__ */ jsx("h2", { children: mode === "by-person" ? "Por persona" : "Pedido completo" }),
+      /* @__PURE__ */ jsx("button", { className: "modal-close", onClick: onClose, children: /* @__PURE__ */ jsx("i", { className: "fas fa-xmark" }) })
+    ] }),
+    /* @__PURE__ */ jsxs("div", { className: "modal-body order-view-body", children: [
+      /* @__PURE__ */ jsx("div", { className: "ov-header", children: /* @__PURE__ */ jsxs("span", { className: "ov-session", children: [
+        "Sesión: ",
+        sessionCode
+      ] }) }),
+      sections.map((sec, i) => /* @__PURE__ */ jsxs("div", { className: "ov-section", children: [
+        /* @__PURE__ */ jsx("div", { className: "ov-section-title", children: sec.title }),
+        sec.items.map((item, j) => /* @__PURE__ */ jsxs("div", { className: "ov-item", children: [
+          /* @__PURE__ */ jsxs("span", { className: "ov-item-name", children: [
+            item.code && /* @__PURE__ */ jsxs("span", { className: "ov-item-code", children: [
+              "#",
+              item.code
+            ] }),
+            item.name
+          ] }),
+          /* @__PURE__ */ jsxs("span", { className: "ov-item-right", children: [
+            /* @__PURE__ */ jsxs("span", { className: "ov-item-qty", children: [
+              "x",
+              item.qty
+            ] }),
+            /* @__PURE__ */ jsxs("span", { className: "ov-item-sub", children: [
+              item.price.toFixed(2).replace(".", ","),
+              "€"
+            ] })
+          ] })
+        ] }, j))
+      ] }, i)),
+      /* @__PURE__ */ jsxs("div", { className: "ov-total", children: [
+        /* @__PURE__ */ jsxs("span", { className: "ov-total-label", children: [
+          "Total ",
+          mode === "by-person" ? "" : "completo"
+        ] }),
+        /* @__PURE__ */ jsxs("span", { className: "ov-total-price", children: [
+          totalPrice.toFixed(2).replace(".", ","),
+          "€"
+        ] })
+      ] }),
+      /* @__PURE__ */ jsxs("div", { className: "ov-total-sub", children: [
+        totalUd,
+        " unidad",
+        totalUd !== 1 ? "es" : "",
+        " · ",
+        persons.filter((p) => Object.values(p.items).length > 0).length,
+        " persona",
+        persons.filter((p) => Object.values(p.items).length > 0).length !== 1 ? "s" : ""
+      ] })
+    ] })
+  ] }) });
+}
+function OrderHistoryModal({ open, onClose, sessionCode }) {
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [expandedOrder, setExpandedOrder] = useState(null);
+  useEffect(() => {
+    if (open && sessionCode) {
+      setLoading(true);
+      getOrderHistory(sessionCode).then((data) => setOrders(data)).catch(() => {
+      }).finally(() => setLoading(false));
+    }
+  }, [open, sessionCode]);
+  if (!open) return null;
+  const totalAllOrders = useMemo(() => {
+    return orders.reduce((sum, o) => {
+      const items = o.items || [];
+      return sum + items.reduce((s, i) => s + (i.price || 0) * i.qty, 0);
+    }, 0);
+  }, [orders]);
+  return /* @__PURE__ */ jsx("div", { className: "modal-overlay", onClick: onClose, children: /* @__PURE__ */ jsxs("div", { className: "modal-box order-view-box", onClick: (e) => e.stopPropagation(), children: [
+    /* @__PURE__ */ jsxs("div", { className: "modal-header", children: [
+      /* @__PURE__ */ jsx("i", { className: "fas fa-clock-rotate" }),
+      /* @__PURE__ */ jsx("h2", { children: "Historial de pedidos" }),
+      /* @__PURE__ */ jsx("button", { className: "modal-close", onClick: onClose, children: /* @__PURE__ */ jsx("i", { className: "fas fa-xmark" }) })
+    ] }),
+    /* @__PURE__ */ jsx("div", { className: "modal-body order-view-body", style: { minHeight: 200 }, children: loading ? /* @__PURE__ */ jsxs("div", { style: { textAlign: "center", padding: 40, color: "#94a3b8" }, children: [
+      /* @__PURE__ */ jsx("i", { className: "fas fa-spinner fa-spin", style: { fontSize: 24 } }),
+      /* @__PURE__ */ jsx("p", { style: { marginTop: 8, fontWeight: 600 }, children: "Cargando..." })
+    ] }) : orders.length === 0 ? /* @__PURE__ */ jsxs("div", { style: { textAlign: "center", padding: 40, color: "#cbd5e1" }, children: [
+      /* @__PURE__ */ jsx("i", { className: "fas fa-receipt", style: { fontSize: 36, marginBottom: 8 } }),
+      /* @__PURE__ */ jsx("p", { style: { fontWeight: 600 }, children: "Sin pedidos anteriores" }),
+      /* @__PURE__ */ jsx("p", { style: { fontSize: 12 }, children: "Los pedidos que hagas aparecerán aquí" })
+    ] }) : /* @__PURE__ */ jsxs(Fragment, { children: [
+      /* @__PURE__ */ jsx("div", { className: "ov-header", children: /* @__PURE__ */ jsxs("span", { children: [
+        orders.length,
+        " pedido",
+        orders.length !== 1 ? "s" : "",
+        " — ",
+        sessionCode
+      ] }) }),
+      orders.map((order) => {
+        const items = order.items || [];
+        const expanded = expandedOrder === order.order_number;
+        const orderTotal = items.reduce((s, i) => s + (i.price || 0) * i.qty, 0);
+        return /* @__PURE__ */ jsxs("div", { className: "oh-card", children: [
+          /* @__PURE__ */ jsxs("div", { className: "oh-card-header", onClick: () => setExpandedOrder(expanded ? null : order.order_number), children: [
+            /* @__PURE__ */ jsxs("div", { className: "oh-card-left", children: [
+              /* @__PURE__ */ jsxs("span", { className: "oh-order-num", children: [
+                "#",
+                order.order_number
+              ] }),
+              /* @__PURE__ */ jsx("span", { className: "oh-order-date", children: order.created_at ? new Date(order.created_at).toLocaleString("es-ES", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "" })
+            ] }),
+            /* @__PURE__ */ jsxs("div", { className: "oh-card-right", children: [
+              /* @__PURE__ */ jsxs("span", { className: "oh-order-summary", children: [
+                order.total_items,
+                " ud · ",
+                order.people_count,
+                " pers"
+              ] }),
+              /* @__PURE__ */ jsxs("span", { className: "oh-order-total", children: [
+                orderTotal.toFixed(2).replace(".", ","),
+                "€"
+              ] }),
+              /* @__PURE__ */ jsx("i", { className: `fas fa-chevron-${expanded ? "up" : "down"}`, style: { fontSize: 11, color: "#94a3b8" } })
+            ] })
+          ] }),
+          expanded && /* @__PURE__ */ jsxs("div", { className: "oh-card-body", children: [
+            order.paid_by && /* @__PURE__ */ jsxs("div", { className: "oh-paid-by", children: [
+              /* @__PURE__ */ jsx("i", { className: "fas fa-wallet" }),
+              " Pagó ",
+              /* @__PURE__ */ jsx("strong", { children: order.paid_by })
+            ] }),
+            items.map((item, idx) => /* @__PURE__ */ jsxs("div", { className: "oh-item", children: [
+              /* @__PURE__ */ jsxs("div", { className: "oh-item-left", children: [
+                /* @__PURE__ */ jsx("span", { className: "oh-item-person", children: item.person }),
+                /* @__PURE__ */ jsxs("span", { className: "oh-item-name", children: [
+                  item.item_code && /* @__PURE__ */ jsxs("span", { className: "ov-item-code", children: [
+                    "#",
+                    item.item_code
+                  ] }),
+                  item.item_name
+                ] })
+              ] }),
+              /* @__PURE__ */ jsxs("div", { className: "oh-item-right", children: [
+                /* @__PURE__ */ jsxs("span", { className: "oh-item-qty", children: [
+                  "x",
+                  item.qty
+                ] }),
+                /* @__PURE__ */ jsxs("span", { className: "oh-item-sub", children: [
+                  (item.price * item.qty).toFixed(2).replace(".", ","),
+                  "€"
+                ] })
+              ] })
+            ] }, idx))
+          ] })
+        ] }, order.order_number);
+      }),
+      /* @__PURE__ */ jsxs("div", { className: "ov-total", children: [
+        /* @__PURE__ */ jsxs("span", { className: "ov-total-label", children: [
+          "Total ",
+          orders.length,
+          " pedido",
+          orders.length !== 1 ? "s" : ""
+        ] }),
+        /* @__PURE__ */ jsxs("span", { className: "ov-total-price", children: [
+          totalAllOrders.toFixed(2).replace(".", ","),
+          "€"
+        ] })
+      ] })
+    ] }) })
+  ] }) });
+}
+function HistoryPanel({ sessionCode }) {
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
+  const [expandedOrder, setExpandedOrder] = useState(null);
+  useEffect(() => {
+    if (!sessionCode) return;
+    setLoading(true);
+    getOrderHistory(sessionCode).then((data) => {
+      setOrders(data);
+      if (data.length > 0) setCollapsed(false);
+    }).catch(() => {
+    }).finally(() => setLoading(false));
+  }, [sessionCode]);
+  useEffect(() => {
+    if (!sessionCode || collapsed) return;
+    const timer = setInterval(() => {
+      getOrderHistory(sessionCode).then((data) => setOrders(data)).catch(() => {
+      });
+    }, 5e3);
+    return () => clearInterval(timer);
+  }, [sessionCode, collapsed]);
+  const totalAll = useMemo(
+    () => orders.reduce((sum, o) => sum + (o.items || []).reduce((s, i) => s + (i.price || 0) * i.qty, 0), 0),
+    [orders]
+  );
+  return /* @__PURE__ */ jsxs("div", { className: "history-panel", children: [
+    /* @__PURE__ */ jsxs("div", { className: "history-header", onClick: () => setCollapsed(!collapsed), children: [
+      /* @__PURE__ */ jsx("i", { className: "fas fa-clock-rotate" }),
+      /* @__PURE__ */ jsxs("span", { children: [
+        "Historial (",
+        orders.length,
+        ")"
+      ] }),
+      /* @__PURE__ */ jsx("i", { className: `fas fa-chevron-${collapsed ? "down" : "up"}`, style: { fontSize: 11, color: "#94a3b8" } })
+    ] }),
+    !collapsed && /* @__PURE__ */ jsx("div", { className: "history-body", children: loading ? /* @__PURE__ */ jsx("div", { style: { textAlign: "center", padding: 20, color: "#94a3b8" }, children: /* @__PURE__ */ jsx("i", { className: "fas fa-spinner fa-spin" }) }) : orders.length === 0 ? /* @__PURE__ */ jsxs("div", { style: { textAlign: "center", padding: 20, color: "#cbd5e1", fontSize: 12 }, children: [
+      /* @__PURE__ */ jsx("i", { className: "fas fa-receipt", style: { fontSize: 24, marginBottom: 6 } }),
+      /* @__PURE__ */ jsx("p", { children: "Sin pedidos anteriores" })
+    ] }) : /* @__PURE__ */ jsxs(Fragment, { children: [
+      orders.map((order) => {
+        const items = order.items || [];
+        const expanded = expandedOrder === order.order_number;
+        const orderTotal = items.reduce((s, i) => s + (i.price || 0) * i.qty, 0);
+        return /* @__PURE__ */ jsxs("div", { className: "hp-card", children: [
+          /* @__PURE__ */ jsxs("div", { className: "hp-card-header", onClick: () => setExpandedOrder(expanded ? null : order.order_number), children: [
+            /* @__PURE__ */ jsxs("div", { className: "hp-card-left", children: [
+              /* @__PURE__ */ jsxs("span", { className: "hp-order-num", children: [
+                "#",
+                order.order_number
+              ] }),
+              /* @__PURE__ */ jsxs("span", { className: "hp-order-payer", title: "Pagó", children: [
+                /* @__PURE__ */ jsx("i", { className: "fas fa-wallet", style: { fontSize: 9, color: "#f59e0b" } }),
+                " ",
+                order.paid_by
+              ] })
+            ] }),
+            /* @__PURE__ */ jsxs("div", { className: "hp-card-right", children: [
+              /* @__PURE__ */ jsxs("span", { className: "hp-order-total", children: [
+                orderTotal.toFixed(2).replace(".", ","),
+                "€"
+              ] }),
+              /* @__PURE__ */ jsx("i", { className: `fas fa-chevron-${expanded ? "up" : "down"}`, style: { fontSize: 10, color: "#94a3b8" } })
+            ] })
+          ] }),
+          expanded && /* @__PURE__ */ jsx("div", { className: "hp-card-body", children: items.map((item, idx) => /* @__PURE__ */ jsxs("div", { className: "hp-item", children: [
+            /* @__PURE__ */ jsx("span", { className: "hp-item-person", children: item.person }),
+            /* @__PURE__ */ jsxs("span", { className: "hp-item-name", children: [
+              item.item_code && /* @__PURE__ */ jsxs("span", { className: "hp-item-code", children: [
+                "#",
+                item.item_code
+              ] }),
+              item.item_name
+            ] }),
+            /* @__PURE__ */ jsxs("span", { className: "hp-item-right", children: [
+              /* @__PURE__ */ jsxs("span", { className: "hp-item-qty", children: [
+                "x",
+                item.qty
+              ] }),
+              /* @__PURE__ */ jsxs("span", { className: "hp-item-sub", children: [
+                (item.price * item.qty).toFixed(2).replace(".", ","),
+                "€"
+              ] })
+            ] })
+          ] }, idx)) })
+        ] }, order.order_number);
+      }),
+      /* @__PURE__ */ jsxs("div", { className: "hp-total", children: [
+        /* @__PURE__ */ jsxs("span", { children: [
+          orders.length,
+          " pedido",
+          orders.length !== 1 ? "s" : ""
+        ] }),
+        /* @__PURE__ */ jsxs("span", { className: "hp-total-price", children: [
+          totalAll.toFixed(2).replace(".", ","),
+          "€"
+        ] })
+      ] })
+    ] }) })
+  ] });
+}
+function SplitwiseModal({ open, onClose, persons, sessionCode }) {
+  const [copied, setCopied] = useState(null);
+  const { personTotals, groupTotal, average, settlements } = useMemo(() => {
+    const hasItems = persons.filter((p) => Object.keys(p.items).length > 0);
+    const pts = hasItems.map((p) => {
+      const items = Object.values(p.items).filter((o) => o.qty > 0).map((o) => ({
+        name: o.item.name || "?",
+        qty: o.qty || 0,
+        price: parsePrice(getPrice(o.category, o.item)) * (o.qty || 0)
+      }));
+      const total = items.reduce((s2, i) => s2 + i.price, 0);
+      return { name: p.name, items, total };
+    });
+    const gt = pts.reduce((s2, p) => s2 + p.total, 0);
+    const n = pts.length || 1;
+    const avg = gt / n;
+    const debtors = [];
+    const creditors = [];
+    pts.forEach((p) => {
+      const diff = p.total - avg;
+      if (diff < -0.01) debtors.push({ name: p.name, debt: Math.abs(diff) });
+      else if (diff > 0.01) creditors.push({ name: p.name, credit: diff });
+    });
+    const s = [];
+    let di = 0, ci = 0;
+    while (di < debtors.length && ci < creditors.length) {
+      const amount = Math.min(debtors[di].debt, creditors[ci].credit);
+      if (amount > 0.01) {
+        s.push({
+          from: debtors[di].name,
+          to: creditors[ci].name,
+          amount: Math.round(amount * 100) / 100
+        });
+      }
+      debtors[di].debt -= amount;
+      creditors[ci].credit -= amount;
+      if (debtors[di].debt < 0.01) di++;
+      if (creditors[ci].credit < 0.01) ci++;
+    }
+    return { personTotals: pts, groupTotal: gt, average: avg, settlements: s };
+  }, [persons]);
+  const formatPrice = (n) => n.toFixed(2).replace(".", ",") + "€";
+  const getSummaryText = () => {
+    let text = `🛵 Euromania · ${sessionCode}
+`;
+    text += `━`.repeat(24) + "\n\n";
+    personTotals.forEach((pt) => {
+      text += `👤 ${pt.name}: ${formatPrice(pt.total)}
+`;
+      pt.items.forEach((i) => {
+        text += `   ×${i.qty} ${i.name}
+`;
+      });
+      text += "\n";
+    });
+    text += `━`.repeat(24) + "\n";
+    text += `💰 Total: ${formatPrice(groupTotal)}
+`;
+    text += `👥 ${personTotals.length} personas · Media: ${formatPrice(average)}/persona
+
+`;
+    if (settlements.length > 0) {
+      text += `💸 Liquidación sugerida:
+`;
+      settlements.forEach((s) => {
+        text += `   ${s.from} → ${s.to}: ${formatPrice(s.amount)}
+`;
+      });
+    } else {
+      text += `✅ Cuentas cuadradas: todos pagan lo mismo.
+`;
+    }
+    return text;
+  };
+  const getCsvText = () => {
+    const lines = [];
+    lines.push("Persona,Producto,Cantidad,Precio Unitario,Total");
+    personTotals.forEach((pt) => {
+      pt.items.forEach((i) => {
+        const unitPrice = i.qty > 0 ? i.price / i.qty : 0;
+        lines.push(
+          `${pt.name},"${i.name}",${i.qty},${unitPrice.toFixed(2).replace(".", ",")}€,${i.price.toFixed(2).replace(".", ",")}€`
+        );
+      });
+    });
+    lines.push("");
+    lines.push("RESUMEN,,,,");
+    personTotals.forEach((pt) => {
+      lines.push(`${pt.name} Total,,,${formatPrice(pt.total)},`);
+    });
+    lines.push(`TOTAL GRUPO,,,,${formatPrice(groupTotal)}`);
+    lines.push(`Media por persona,,,,${formatPrice(average)}`);
+    if (settlements.length > 0) {
+      lines.push("");
+      lines.push("LIQUIDACIÓN,,,,");
+      settlements.forEach((s) => {
+        lines.push(`${s.from} paga a ${s.to},,,${formatPrice(s.amount)},`);
+      });
+    }
+    return lines.join("\n");
+  };
+  const handleCopyText = async () => {
+    try {
+      await navigator.clipboard.writeText(getSummaryText());
+      setCopied("text");
+      setTimeout(() => setCopied(null), 2e3);
+    } catch {
+    }
+  };
+  const handleCopyCsv = async () => {
+    try {
+      await navigator.clipboard.writeText(getCsvText());
+      setCopied("csv");
+      setTimeout(() => setCopied(null), 2e3);
+    } catch {
+    }
+  };
+  if (!open) return null;
+  return /* @__PURE__ */ jsx("div", { className: "modal-overlay", onClick: onClose, children: /* @__PURE__ */ jsxs("div", { className: "modal-box splitwise-box", onClick: (e) => e.stopPropagation(), children: [
+    /* @__PURE__ */ jsxs("div", { className: "modal-header", style: { background: "#0f172a", color: "#fff" }, children: [
+      /* @__PURE__ */ jsx("i", { className: "fas fa-hand-holding-dollar" }),
+      /* @__PURE__ */ jsx("h2", { style: { color: "#fff" }, children: "Splitwise / Liquidación" }),
+      /* @__PURE__ */ jsx("button", { className: "modal-close", onClick: onClose, style: { color: "#94a3b8" }, children: /* @__PURE__ */ jsx("i", { className: "fas fa-xmark" }) })
+    ] }),
+    /* @__PURE__ */ jsxs("div", { className: "modal-body splitwise-body", children: [
+      /* @__PURE__ */ jsx("div", { className: "sw-header", children: /* @__PURE__ */ jsxs("span", { className: "sw-session", children: [
+        "🛵 Euromania · ",
+        sessionCode
+      ] }) }),
+      personTotals.map((pt, i) => /* @__PURE__ */ jsxs("div", { className: "sw-person", children: [
+        /* @__PURE__ */ jsxs("div", { className: "sw-person-header", children: [
+          /* @__PURE__ */ jsxs("span", { className: "sw-person-name", children: [
+            /* @__PURE__ */ jsx("i", { className: "fas fa-user" }),
+            " ",
+            pt.name
+          ] }),
+          /* @__PURE__ */ jsx("span", { className: "sw-person-total", children: formatPrice(pt.total) })
+        ] }),
+        pt.items.map((item, j) => /* @__PURE__ */ jsxs("div", { className: "sw-item", children: [
+          /* @__PURE__ */ jsxs("span", { className: "sw-item-name", children: [
+            "×",
+            item.qty,
+            " ",
+            item.name
+          ] }),
+          /* @__PURE__ */ jsx("span", { className: "sw-item-price", children: formatPrice(item.price) })
+        ] }, j)),
+        pt.items.length === 0 && /* @__PURE__ */ jsx("div", { className: "sw-item", style: { color: "#94a3b8", fontStyle: "italic" }, children: "Sin productos" })
+      ] }, i)),
+      /* @__PURE__ */ jsxs("div", { className: "sw-summary", children: [
+        /* @__PURE__ */ jsxs("div", { className: "sw-summary-row total", children: [
+          /* @__PURE__ */ jsx("span", { children: "Total grupo" }),
+          /* @__PURE__ */ jsx("span", { className: "sw-summary-value", children: formatPrice(groupTotal) })
+        ] }),
+        /* @__PURE__ */ jsxs("div", { className: "sw-summary-row", children: [
+          /* @__PURE__ */ jsx("span", { children: "Personas" }),
+          /* @__PURE__ */ jsx("span", { children: personTotals.length })
+        ] }),
+        /* @__PURE__ */ jsxs("div", { className: "sw-summary-row", children: [
+          /* @__PURE__ */ jsx("span", { children: "Media por persona" }),
+          /* @__PURE__ */ jsx("span", { className: "sw-summary-value", children: formatPrice(average) })
+        ] })
+      ] }),
+      settlements.length > 0 && /* @__PURE__ */ jsxs("div", { className: "sw-settlements", children: [
+        /* @__PURE__ */ jsxs("div", { className: "sw-settlements-title", children: [
+          /* @__PURE__ */ jsx("i", { className: "fas fa-arrow-right-arrow-left" }),
+          " Liquidación sugerida"
+        ] }),
+        settlements.map((s, i) => /* @__PURE__ */ jsxs("div", { className: "sw-settlement", children: [
+          /* @__PURE__ */ jsx("span", { className: "sw-sett-from", children: s.from }),
+          /* @__PURE__ */ jsx("span", { className: "sw-sett-arrow", children: "→" }),
+          /* @__PURE__ */ jsx("span", { className: "sw-sett-to", children: s.to }),
+          /* @__PURE__ */ jsx("span", { className: "sw-sett-amount", children: formatPrice(s.amount) })
+        ] }, i)),
+        /* @__PURE__ */ jsxs("div", { className: "sw-sett-note", children: [
+          /* @__PURE__ */ jsx("i", { className: "fas fa-info-circle" }),
+          " Quien debe más (media) paga a quien gastó más"
+        ] })
+      ] }),
+      settlements.length === 0 && personTotals.length > 0 && /* @__PURE__ */ jsxs("div", { className: "sw-settlements", style: { borderColor: "#86efac" }, children: [
+        /* @__PURE__ */ jsxs("div", { className: "sw-settlements-title", style: { color: "#16a34a" }, children: [
+          /* @__PURE__ */ jsx("i", { className: "fas fa-check-circle" }),
+          " Cuadradas"
+        ] }),
+        /* @__PURE__ */ jsxs("div", { style: { padding: "12px 0", color: "#64748b", fontSize: 13 }, children: [
+          "Todos pagan lo mismo (",
+          formatPrice(average),
+          "). No hay liquidación necesaria."
+        ] })
+      ] }),
+      /* @__PURE__ */ jsxs("div", { className: "sw-actions", children: [
+        /* @__PURE__ */ jsxs(
+          "button",
+          {
+            className: `sw-btn ${copied === "text" ? "copied" : ""}`,
+            onClick: handleCopyText,
+            children: [
+              /* @__PURE__ */ jsx("i", { className: `fas ${copied === "text" ? "fa-check" : "fa-copy"}` }),
+              copied === "text" ? "Copiado ✓" : "Copiar resumen"
+            ]
+          }
+        ),
+        /* @__PURE__ */ jsxs(
+          "button",
+          {
+            className: `sw-btn sw-btn-csv ${copied === "csv" ? "copied" : ""}`,
+            onClick: handleCopyCsv,
+            children: [
+              /* @__PURE__ */ jsx("i", { className: `fas ${copied === "csv" ? "fa-check" : "fa-file-csv"}` }),
+              copied === "csv" ? "Copiado ✓" : "CSV (Excel / Splitwise)"
+            ]
+          }
+        )
+      ] })
+    ] })
+  ] }) });
+}
 let toastId = 0;
 function OrderPage() {
   var _a;
@@ -2066,6 +2724,9 @@ function OrderPage() {
   const [privacyOpen, setPrivacyOpen] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
   const [toasts, setToasts] = useState([]);
+  const [orderViewMode, setOrderViewMode] = useState(null);
+  const [showOrderHistory, setShowOrderHistory] = useState(false);
+  const [showSplitwise, setShowSplitwise] = useState(false);
   const wsRef = useRef(null);
   useRef([]);
   const addToast = useCallback((message, type, duration = 3500) => {
@@ -2277,7 +2938,7 @@ function OrderPage() {
     navigator.clipboard.writeText(sessionCode);
     addToast("📋 Código copiado: " + sessionCode, "info");
   }, [sessionCode, addToast]);
-  const exportOrder = useCallback(() => {
+  const showOrderByPerson = useCallback(() => {
     if (persons.length === 0) {
       addToast("El pedido está vacío", "info");
       return;
@@ -2287,41 +2948,9 @@ function OrderPage() {
       addToast("El pedido está vacío", "info");
       return;
     }
-    let lines = [];
-    let groupTotal = 0;
-    persons.forEach((p) => {
-      const items = Object.values(p.items);
-      if (items.length === 0) return;
-      lines.push(`── ${p.name} ──`);
-      let pTotal = 0;
-      items.forEach((o) => {
-        const pr = parsePrice(getPrice(o.category, o.item));
-        const sub = pr * o.qty;
-        pTotal += sub;
-        lines.push(`  ${o.item.code ? "#" + o.item.code + " " : ""}${o.item.name}  ${o.qty}ud = ${sub.toFixed(2).replace(".", ",")}€`);
-      });
-      lines.push(`  Subtotal: ${pTotal.toFixed(2).replace(".", ",")}€
-`);
-      groupTotal += pTotal;
-    });
-    lines.unshift(`📋 EUROMANIA — Sesión: ${sessionCode}`);
-    lines.unshift("═══════════════════════════════");
-    lines.push("═══════════════════════════════");
-    lines.push(`TOTAL GRUPO: ${groupTotal.toFixed(2).replace(".", ",")}€`);
-    const totalUd = persons.reduce((s, p) => s + Object.values(p.items).reduce((a, o) => a + o.qty, 0), 0);
-    lines.push(`${totalUd} ud — ${persons.filter((p) => Object.keys(p.items).length > 0).length} personas`);
-    const text = lines.join("\n");
-    navigator.clipboard.writeText(text).then(() => addToast("📋 Copiado al portapapeles", "info")).catch(() => {
-      const ta = document.createElement("textarea");
-      ta.value = text;
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand("copy");
-      document.body.removeChild(ta);
-      addToast("📋 Copiado", "info");
-    });
-  }, [persons, sessionCode, addToast]);
-  const exportConsolidated = useCallback(() => {
+    setOrderViewMode("by-person");
+  }, [persons, addToast]);
+  const showOrderConsolidated = useCallback(() => {
     if (persons.length === 0) {
       addToast("El pedido está vacío", "info");
       return;
@@ -2331,55 +2960,29 @@ function OrderPage() {
       addToast("El pedido está vacío", "info");
       return;
     }
-    const consolidated = {};
-    persons.forEach((p) => {
-      Object.entries(p.items).forEach(([key, o]) => {
-        if (consolidated[key]) {
-          consolidated[key].qty += o.qty;
-        } else {
-          consolidated[key] = {
-            name: o.item.name,
-            code: o.item.code || key,
-            qty: o.qty,
-            category: o.category,
-            price: parsePrice(getPrice(o.category, o.item))
-          };
-        }
-      });
-    });
-    const catOrder = ["casa", "clasicos", "imprescindibles", "especiales", "montycookie", "montydinas", "montyperros", "montyburgers", "montypizzas", "montygourmet", "aperitivos", "postres", "bebidas", "extras"];
-    const sorted = Object.entries(consolidated).sort((a, b) => {
-      const ca = catOrder.indexOf(a[1].category);
-      const cb = catOrder.indexOf(b[1].category);
-      if (ca !== cb) return ca - cb;
-      return a[1].code.localeCompare(b[1].code, void 0, { numeric: true });
-    });
-    let lines = [];
-    lines.push("═══════════════════════════════");
-    lines.push(`📋 PEDIDO — Sesión: ${sessionCode}`);
-    lines.push("═══════════════════════════════");
-    lines.push("");
-    let currentCat = "";
-    let totalUd = 0;
-    let totalPrice = 0;
-    sorted.forEach(([_, o]) => {
-      const catLabel = CATEGORY_LABELS[o.category] || o.category;
-      if (catLabel !== currentCat) {
-        currentCat = catLabel;
-        lines.push(`── ${catLabel} ──`);
-      }
-      const codeStr = o.code ? `#${o.code}` : "";
-      lines.push(`  ${codeStr} ${o.name}  ${o.qty}ud = ${(o.price * o.qty).toFixed(2).replace(".", ",")}€`);
-      totalUd += o.qty;
-      totalPrice += o.price * o.qty;
-    });
-    lines.push("");
-    lines.push("═══════════════════════════════");
-    lines.push(`TOTAL: ${totalPrice.toFixed(2).replace(".", ",")}€ — ${totalUd} ud`);
-    lines.push("═══════════════════════════════");
-    const text = lines.join("\n");
-    navigator.clipboard.writeText(text).then(() => addToast("📋 Pedido copiado al portapapeles", "info")).catch(() => addToast("❌ Error al copiar", "remove"));
-  }, [persons, sessionCode, addToast]);
+    setOrderViewMode("consolidated");
+  }, [persons, addToast]);
+  const showSplitwiseView = useCallback(() => {
+    if (persons.length === 0) {
+      addToast("El pedido está vacío", "info");
+      return;
+    }
+    const hasItems = persons.some((p) => Object.keys(p.items).length > 0);
+    if (!hasItems) {
+      addToast("El pedido está vacío", "info");
+      return;
+    }
+    setShowSplitwise(true);
+  }, [persons, addToast]);
+  const handlePlaceOrder = useCallback(async () => {
+    if (!sessionCode || !myName) return;
+    try {
+      const result = await placeOrder(sessionCode, myName);
+      addToast(`✅ Pedido #${result.order_number} realizado (${result.total_items} ud)`, "add", 4e3);
+    } catch {
+      addToast("❌ Error al realizar el pedido", "remove");
+    }
+  }, [sessionCode, myName, addToast]);
   const sessionUrl = `https://euromania.cabrasky.net/app?session=${sessionCode}`;
   if (loading) {
     return /* @__PURE__ */ jsxs("div", { style: { display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", color: "#94a3b8" }, children: [
@@ -2440,10 +3043,14 @@ function OrderPage() {
           onChangeQty: changeQty,
           onRemoveItem: removeItemAction,
           onClear: handleClear,
-          onExport: exportOrder,
-          onExportConsolidated: exportConsolidated
+          onExport: showOrderByPerson,
+          onExportConsolidated: showOrderConsolidated,
+          onExportSplitwise: showSplitwiseView,
+          onPlaceOrder: handlePlaceOrder,
+          onShowHistory: () => setShowOrderHistory(true)
         }
-      )
+      ),
+      /* @__PURE__ */ jsx(HistoryPanel, { sessionCode })
     ] }),
     /* @__PURE__ */ jsx(
       QRModal,
@@ -2461,6 +3068,33 @@ function OrderPage() {
       }
     ),
     /* @__PURE__ */ jsx(ToastContainer, { toasts }),
+    /* @__PURE__ */ jsx(
+      OrderViewModal,
+      {
+        open: orderViewMode !== null,
+        onClose: () => setOrderViewMode(null),
+        persons,
+        sessionCode,
+        mode: orderViewMode || "by-person"
+      }
+    ),
+    /* @__PURE__ */ jsx(
+      OrderHistoryModal,
+      {
+        open: showOrderHistory,
+        onClose: () => setShowOrderHistory(false),
+        sessionCode
+      }
+    ),
+    /* @__PURE__ */ jsx(
+      SplitwiseModal,
+      {
+        open: showSplitwise,
+        onClose: () => setShowSplitwise(false),
+        persons,
+        sessionCode
+      }
+    ),
     showAdmin && /* @__PURE__ */ jsx(AdminPanel, { onClose: () => setShowAdmin(false) })
   ] });
 }
