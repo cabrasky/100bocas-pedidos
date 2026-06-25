@@ -10,6 +10,7 @@ import hmac
 import json
 import os
 import random
+from datetime import datetime
 import re
 import string
 import time
@@ -1046,6 +1047,191 @@ async def admin_activate_menu(request: Request, menu_id: int):
             return JSONResponse({"error": "Menu not found"}, status_code=404)
         await conn.execute("UPDATE menu_configs SET is_active = (id = $1)", menu_id)
     return {"status": "ok", "menu_id": menu_id}
+
+
+@app.get("/api/admin/menus/{menu_id}")
+async def admin_get_menu(request: Request, menu_id: int):
+    """Get full menu detail with categories and items."""
+    auth_error = _admin_required(request)
+    if auth_error:
+        return auth_error
+    assert pool
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT id, name, slug, description, is_active FROM menu_configs WHERE id = $1", menu_id
+        )
+        if not row:
+            return JSONResponse({"error": "Menu not found"}, status_code=404)
+        cats = await conn.fetch(
+            "SELECT id, key, label, icon, sort_order FROM menu_categories WHERE menu_id = $1 ORDER BY sort_order, id",
+            menu_id,
+        )
+        categories = []
+        for c in cats:
+            items = await conn.fetch(
+                "SELECT id, code, name, ingredients, price, sort_order FROM menu_items WHERE category_id = $1 ORDER BY sort_order, id",
+                c["id"],
+            )
+            categories.append({
+                "id": c["id"],
+                "key": c["key"],
+                "label": c["label"],
+                "icon": c["icon"],
+                "items": [{"id": i["id"], "code": i["code"] or "", "name": i["name"],
+                           "ingredients": i["ingredients"] or "", "price": i["price"] or ""}
+                          for i in items],
+            })
+        schedules = await conn.fetch(
+            "SELECT id, day_of_week FROM menu_schedules WHERE menu_id = $1 ORDER BY day_of_week", menu_id
+        )
+    return {
+        "id": row["id"], "name": row["name"], "slug": row["slug"],
+        "description": row["description"], "is_active": row["is_active"],
+        "categories": categories,
+        "schedules": [{"id": s["id"], "day": s["day_of_week"]} for s in schedules],
+    }
+
+
+@app.post("/api/admin/menus/{menu_id}/duplicate")
+async def admin_duplicate_menu(request: Request, menu_id: int):
+    """Duplicate a menu with all its categories and items."""
+    auth_error = _admin_required(request)
+    if auth_error:
+        return auth_error
+    assert pool
+    async with pool.acquire() as conn:
+        src = await conn.fetchrow(
+            "SELECT name, slug, description FROM menu_configs WHERE id = $1", menu_id
+        )
+        if not src:
+            return JSONResponse({"error": "Menu not found"}, status_code=404)
+        # Create new menu
+        new_slug = f"{src['slug']}-copia"
+        # Try slug variants if it exists
+        for attempt in range(100):
+            slug_try = new_slug if attempt == 0 else f"{new_slug}-{attempt}"
+            try:
+                new_id = await conn.fetchval(
+                    "INSERT INTO menu_configs (name, slug, description) VALUES ($1, $2, $3) RETURNING id",
+                    f"{src['name']} (copia)", slug_try, src['description'],
+                )
+                break
+            except asyncpg.UniqueViolationError:
+                if attempt == 99:
+                    return JSONResponse({"error": "Too many duplicates"}, status_code=409)
+                continue
+        # Copy categories
+        cats = await conn.fetch(
+            "SELECT key, label, icon, sort_order FROM menu_categories WHERE menu_id = $1 ORDER BY id", menu_id
+        )
+        for c in cats:
+            cat_id = await conn.fetchval(
+                "INSERT INTO menu_categories (menu_id, key, label, icon, sort_order) VALUES ($1, $2, $3, $4, $5) RETURNING id",
+                new_id, c["key"], c["label"], c["icon"], c["sort_order"],
+            )
+            # Copy items
+            items = await conn.fetch(
+                "SELECT code, name, ingredients, price, sort_order FROM menu_items WHERE category_id IN "
+                "(SELECT id FROM menu_categories WHERE menu_id = $1 AND key = $2) ORDER BY id",
+                menu_id, c["key"],
+            )
+            for i in items:
+                await conn.execute(
+                    "INSERT INTO menu_items (category_id, code, name, ingredients, price, sort_order) VALUES ($1, $2, $3, $4, $5, $6)",
+                    cat_id, i["code"], i["name"], i["ingredients"], i["price"], i["sort_order"],
+                )
+    return {"id": new_id, "name": f"{src['name']} (copia)"}
+
+
+# ── Admin: Day-of-week schedule ─────────────────────
+@app.get("/api/admin/menus/{menu_id}/schedules")
+async def admin_list_schedules(request: Request, menu_id: int):
+    auth_error = _admin_required(request)
+    if auth_error:
+        return auth_error
+    assert pool
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT id, day_of_week FROM menu_schedules WHERE menu_id = $1 ORDER BY day_of_week", menu_id
+        )
+    return [{"id": r["id"], "day": r["day_of_week"]} for r in rows]
+
+
+@app.post("/api/admin/menus/{menu_id}/schedules")
+async def admin_set_schedule(request: Request, menu_id: int):
+    """Set or replace schedules for a menu. Body: {days: [0,1,2,3,4,5,6]} (0=Monday, 6=Sunday)"""
+    auth_error = _admin_required(request)
+    if auth_error:
+        return auth_error
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Invalid JSON"}, status_code=400)
+    days = body.get("days", [])
+    if not isinstance(days, list) or not all(isinstance(d, int) and 0 <= d <= 6 for d in days):
+        return JSONResponse({"error": "days must be a list of integers 0-6"}, status_code=400)
+    assert pool
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT id FROM menu_configs WHERE id = $1", menu_id)
+        if not row:
+            return JSONResponse({"error": "Menu not found"}, status_code=404)
+        # Replace all schedules for this menu
+        await conn.execute("DELETE FROM menu_schedules WHERE menu_id = $1", menu_id)
+        for day in days:
+            await conn.execute(
+                "INSERT INTO menu_schedules (menu_id, day_of_week) VALUES ($1, $2)",
+                menu_id, day,
+            )
+    return {"status": "ok", "days": days}
+
+
+@app.delete("/api/admin/schedules/{schedule_id}")
+async def admin_delete_schedule(request: Request, schedule_id: int):
+    auth_error = _admin_required(request)
+    if auth_error:
+        return auth_error
+    assert pool
+    async with pool.acquire() as conn:
+        await conn.execute("DELETE FROM menu_schedules WHERE id = $1", schedule_id)
+    return {"status": "ok"}
+
+
+@app.post("/api/admin/schedule/apply")
+async def admin_apply_schedule(request: Request):
+    """Apply day-of-week schedule: activate the menu scheduled for today (if any)."""
+    auth_error = _admin_required(request)
+    if auth_error:
+        return auth_error
+    today = datetime.now().isoweekday() % 7  # isoweekday: 1=Mon..7=Sun → 0=Mon..6=Sun
+    assert pool
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT menu_id FROM menu_schedules WHERE day_of_week = $1 LIMIT 1", today
+        )
+        if row:
+            await conn.execute("UPDATE menu_configs SET is_active = (id = $1)", row["menu_id"])
+            menu = await conn.fetchrow("SELECT name FROM menu_configs WHERE id = $1", row["menu_id"])
+            return {"status": "ok", "activated": menu["name"], "day": today}
+        else:
+            return {"status": "ok", "activated": None, "day": today, "message": "No schedule for today"}
+
+
+@app.post("/api/internal/apply-schedule")
+async def internal_apply_schedule():
+    """Internal-only endpoint for cron. No auth needed (only accessible via localhost)."""
+    today = datetime.now().isoweekday() % 7
+    assert pool
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT menu_id FROM menu_schedules WHERE day_of_week = $1 LIMIT 1", today
+        )
+        if row:
+            await conn.execute("UPDATE menu_configs SET is_active = (id = $1)", row["menu_id"])
+            menu = await conn.fetchrow("SELECT name FROM menu_configs WHERE id = $1", row["menu_id"])
+            print(f"[schedule] Auto-activated '{menu['name']}' for day {today}")
+            return {"status": "ok", "activated": menu["name"]}
+    print(f"[schedule] No schedule for day {today}")
+    return {"status": "ok", "activated": None}
 
 
 # ── Admin: Category CRUD ───────────────────────────

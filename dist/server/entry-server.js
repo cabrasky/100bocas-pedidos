@@ -908,6 +908,8 @@ function AdminBans({ authHeaders, base }) {
     ] })
   ] });
 }
+const DAY_NAMES = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
+const DAY_FULL = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
 function AdminMenus({ authHeaders, base }) {
   const [menus, setMenus] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -916,6 +918,8 @@ function AdminMenus({ authHeaders, base }) {
   const [newName, setNewName] = useState("");
   const [newSlug, setNewSlug] = useState("");
   const [newDesc, setNewDesc] = useState("");
+  const [editingMenu, setEditingMenu] = useState(null);
+  const [schMsg, setSchMsg] = useState("");
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -931,9 +935,13 @@ function AdminMenus({ authHeaders, base }) {
   useEffect(() => {
     load();
   }, [load]);
+  const showMsg = (m, t) => {
+    setMsg(m);
+    setMsgType(t);
+    setTimeout(() => setMsg(""), 3e3);
+  };
   const handleCreate = async () => {
     if (!newName.trim() || !newSlug.trim()) return;
-    setMsg("");
     try {
       const r = await fetch(`${base}/api/admin/menus`, {
         method: "POST",
@@ -942,19 +950,16 @@ function AdminMenus({ authHeaders, base }) {
       });
       const data = await r.json();
       if (data.error) {
-        setMsg(data.error);
-        setMsgType("err");
+        showMsg(data.error, "err");
       } else {
-        setMsg(`✅ Carta "${newName}" creada`);
-        setMsgType("ok");
+        showMsg(`✅ "${newName}" creada`, "ok");
         setNewName("");
         setNewSlug("");
         setNewDesc("");
         load();
       }
     } catch {
-      setMsg("Error al crear");
-      setMsgType("err");
+      showMsg("Error al crear", "err");
     }
   };
   const handleActivate = async (id) => {
@@ -962,16 +967,14 @@ function AdminMenus({ authHeaders, base }) {
       const r = await fetch(`${base}/api/admin/menus/${id}/activate`, { method: "POST", headers: authHeaders() });
       const data = await r.json();
       if (data.error) {
-        setMsg(data.error);
-        setMsgType("err");
+        showMsg(data.error, "err");
       } else {
-        setMsg("✅ Carta activada");
-        setMsgType("ok");
+        showMsg("✅ Carta activada", "ok");
         load();
+        if ((editingMenu == null ? void 0 : editingMenu.id) === id) loadMenu(id);
       }
     } catch {
-      setMsg("Error");
-      setMsgType("err");
+      showMsg("Error", "err");
     }
   };
   const handleDelete = async (id, name) => {
@@ -980,102 +983,454 @@ function AdminMenus({ authHeaders, base }) {
       const r = await fetch(`${base}/api/admin/menus/${id}`, { method: "DELETE", headers: authHeaders() });
       const data = await r.json();
       if (data.error) {
-        setMsg(data.error);
-        setMsgType("err");
+        showMsg(data.error, "err");
       } else {
-        setMsg(`✅ "${name}" eliminada`);
-        setMsgType("ok");
+        showMsg(`✅ "${name}" eliminada`, "ok");
+        load();
+        if ((editingMenu == null ? void 0 : editingMenu.id) === id) setEditingMenu(null);
+      }
+    } catch {
+      showMsg("Error", "err");
+    }
+  };
+  const handleDuplicate = async (id) => {
+    try {
+      const r = await fetch(`${base}/api/admin/menus/${id}/duplicate`, { method: "POST", headers: authHeaders() });
+      const data = await r.json();
+      if (data.error) {
+        showMsg(data.error, "err");
+      } else {
+        showMsg(`✅ Duplicada como "${data.name}"`, "ok");
         load();
       }
     } catch {
-      setMsg("Error");
-      setMsgType("err");
+      showMsg("Error al duplicar", "err");
+    }
+  };
+  const loadMenu = async (id) => {
+    try {
+      const r = await fetch(`${base}/api/admin/menus/${id}`, { headers: authHeaders() });
+      if (r.status === 401 || r.status === 403) return;
+      setEditingMenu(await r.json());
+    } catch {
+      showMsg("Error al cargar detalle", "err");
+    }
+  };
+  const handleSetSchedule = async (menuId, day, add) => {
+    if (!editingMenu) return;
+    const current = editingMenu.schedules.map((s) => s.day);
+    const days = add ? [...current, day].sort() : current.filter((d) => d !== day);
+    try {
+      const r = await fetch(`${base}/api/admin/menus/${menuId}/schedules`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ days })
+      });
+      const data = await r.json();
+      if (data.error) {
+        setSchMsg(data.error);
+      } else {
+        setSchMsg("✅ Horario actualizado");
+        loadMenu(menuId);
+      }
+    } catch {
+      setSchMsg("Error");
+    }
+    setTimeout(() => setSchMsg(""), 2500);
+  };
+  const handleAddCategory = async (menuId) => {
+    const key = prompt("Key (slug, ej: clasicos):");
+    if (!(key == null ? void 0 : key.trim())) return;
+    const label = prompt("Label (nombre visible, ej: Clásicos):");
+    if (!(label == null ? void 0 : label.trim())) return;
+    try {
+      const r = await fetch(`${base}/api/admin/menus/${menuId}/categories`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ key: key.trim(), label: label.trim(), icon: "fa-list" })
+      });
+      const data = await r.json();
+      if (data.error) {
+        showMsg(data.error, "err");
+      } else {
+        showMsg(`✅ Categoría "${label}" creada`, "ok");
+        loadMenu(menuId);
+      }
+    } catch {
+      showMsg("Error", "err");
+    }
+  };
+  const handleDeleteCategory = async (catId, menuId) => {
+    if (!window.confirm("¿Eliminar esta categoría y todos sus productos?")) return;
+    try {
+      await fetch(`${base}/api/admin/categories/${catId}`, { method: "DELETE", headers: authHeaders() });
+      showMsg("✅ Categoría eliminada", "ok");
+      loadMenu(menuId);
+    } catch {
+      showMsg("Error", "err");
+    }
+  };
+  const handleAddItem = async (catId, menuId) => {
+    const name = prompt("Nombre del producto:");
+    if (!(name == null ? void 0 : name.trim())) return;
+    const code = prompt("Código (opcional, ej: 01):") || "";
+    const price = prompt("Precio (opcional, ej: 1€):") || "";
+    try {
+      const r = await fetch(`${base}/api/admin/categories/${catId}/items`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ name: name.trim(), code, price })
+      });
+      const data = await r.json();
+      if (data.error) {
+        showMsg(data.error, "err");
+      } else {
+        showMsg(`✅ "${name}" añadido`, "ok");
+        loadMenu(menuId);
+      }
+    } catch {
+      showMsg("Error", "err");
+    }
+  };
+  const handleEditItem = async (item, catId, menuId) => {
+    const name = prompt("Nombre:", item.name);
+    if (!(name == null ? void 0 : name.trim())) return;
+    const code = prompt("Código:", item.code) || "";
+    const price = prompt("Precio:", item.price) || "";
+    try {
+      await fetch(`${base}/api/admin/items/${item.id}`, {
+        method: "PUT",
+        headers: authHeaders(),
+        body: JSON.stringify({ name: name.trim(), code, price })
+      });
+      showMsg("✅ Producto actualizado", "ok");
+      loadMenu(menuId);
+    } catch {
+      showMsg("Error", "err");
+    }
+  };
+  const handleDeleteItem = async (itemId, itemName, menuId) => {
+    if (!window.confirm(`¿Eliminar "${itemName}"?`)) return;
+    try {
+      await fetch(`${base}/api/admin/items/${itemId}`, { method: "DELETE", headers: authHeaders() });
+      showMsg(`✅ "${itemName}" eliminado`, "ok");
+      loadMenu(menuId);
+    } catch {
+      showMsg("Error", "err");
     }
   };
   return /* @__PURE__ */ jsxs("div", { className: "admin-menus", children: [
-    /* @__PURE__ */ jsxs("div", { className: "admin-section", children: [
-      /* @__PURE__ */ jsxs("h3", { children: [
-        /* @__PURE__ */ jsx("i", { className: "fas fa-plus-circle" }),
-        " Nueva carta"
-      ] }),
-      /* @__PURE__ */ jsxs("div", { className: "menu-create-form", children: [
-        /* @__PURE__ */ jsx(
-          "input",
-          {
-            type: "text",
-            className: "menu-input",
-            placeholder: "Nombre (ej: Euromanía 1€)",
-            value: newName,
-            onChange: (e) => setNewName(e.target.value)
-          }
-        ),
-        /* @__PURE__ */ jsx(
-          "input",
-          {
-            type: "text",
-            className: "menu-input",
-            placeholder: "Slug (ej: euromania)",
-            value: newSlug,
-            onChange: (e) => setNewSlug(e.target.value.toLowerCase().replace(/\s+/g, "-"))
-          }
-        ),
-        /* @__PURE__ */ jsx(
-          "input",
-          {
-            type: "text",
-            className: "menu-input",
-            placeholder: "Descripción (opcional)",
-            value: newDesc,
-            onChange: (e) => setNewDesc(e.target.value)
-          }
-        ),
-        /* @__PURE__ */ jsxs("button", { className: "menu-create-btn", onClick: handleCreate, disabled: !newName.trim() || !newSlug.trim(), children: [
-          /* @__PURE__ */ jsx("i", { className: "fas fa-plus" }),
-          " Crear carta"
+    msg && /* @__PURE__ */ jsx("div", { className: `ban-msg ${msgType === "ok" ? "ban-msg-ok" : "ban-msg-err"}`, style: { marginBottom: 12 }, children: msg }),
+    !editingMenu && /* @__PURE__ */ jsxs(Fragment, { children: [
+      /* @__PURE__ */ jsxs("div", { className: "admin-section", children: [
+        /* @__PURE__ */ jsxs("h3", { children: [
+          /* @__PURE__ */ jsx("i", { className: "fas fa-plus-circle" }),
+          " Nueva carta"
+        ] }),
+        /* @__PURE__ */ jsxs("div", { className: "menu-create-form", children: [
+          /* @__PURE__ */ jsx(
+            "input",
+            {
+              type: "text",
+              className: "menu-input",
+              placeholder: "Nombre (ej: Euromanía 1€)",
+              value: newName,
+              onChange: (e) => setNewName(e.target.value)
+            }
+          ),
+          /* @__PURE__ */ jsx(
+            "input",
+            {
+              type: "text",
+              className: "menu-input",
+              placeholder: "Slug (ej: euromania)",
+              value: newSlug,
+              onChange: (e) => setNewSlug(e.target.value.toLowerCase().replace(/\s+/g, "-"))
+            }
+          ),
+          /* @__PURE__ */ jsx(
+            "input",
+            {
+              type: "text",
+              className: "menu-input",
+              placeholder: "Descripción (opcional)",
+              value: newDesc,
+              onChange: (e) => setNewDesc(e.target.value)
+            }
+          ),
+          /* @__PURE__ */ jsxs("button", { className: "menu-create-btn", onClick: handleCreate, disabled: !newName.trim() || !newSlug.trim(), children: [
+            /* @__PURE__ */ jsx("i", { className: "fas fa-plus" }),
+            " Crear carta"
+          ] })
         ] })
       ] }),
-      msg && /* @__PURE__ */ jsx("div", { className: `ban-msg ${msgType === "ok" ? "ban-msg-ok" : "ban-msg-err"}`, children: msg })
+      /* @__PURE__ */ jsxs("div", { className: "admin-section", children: [
+        /* @__PURE__ */ jsxs("h3", { children: [
+          /* @__PURE__ */ jsx("i", { className: "fas fa-list" }),
+          " Cartas configuradas"
+        ] }),
+        loading ? /* @__PURE__ */ jsxs("div", { className: "admin-loading", children: [
+          /* @__PURE__ */ jsx("i", { className: "fas fa-spinner fa-spin" }),
+          " Cargando..."
+        ] }) : menus.length === 0 ? /* @__PURE__ */ jsxs("p", { className: "ban-empty", children: [
+          /* @__PURE__ */ jsx("i", { className: "fas fa-book" }),
+          " No hay cartas configuradas"
+        ] }) : /* @__PURE__ */ jsx("div", { className: "menu-list", children: menus.map((m) => /* @__PURE__ */ jsxs("div", { className: `menu-card ${m.is_active ? "active-menu" : ""}`, children: [
+          /* @__PURE__ */ jsxs("div", { className: "menu-card-left", style: { cursor: "pointer" }, onClick: () => loadMenu(m.id), children: [
+            /* @__PURE__ */ jsxs("div", { className: "menu-card-name", children: [
+              m.is_active && /* @__PURE__ */ jsx("span", { className: "menu-active-badge", children: /* @__PURE__ */ jsx("i", { className: "fas fa-check-circle" }) }),
+              /* @__PURE__ */ jsx("strong", { children: m.name }),
+              /* @__PURE__ */ jsx("span", { className: "menu-slug", children: /* @__PURE__ */ jsx("code", { children: m.slug }) })
+            ] }),
+            m.description && /* @__PURE__ */ jsx("div", { className: "menu-card-desc", children: m.description }),
+            /* @__PURE__ */ jsxs("div", { className: "menu-card-meta", style: { display: "flex", gap: 12 }, children: [
+              /* @__PURE__ */ jsxs("span", { children: [
+                "Creada ",
+                m.created_at ? new Date(m.created_at).toLocaleDateString("es-ES") : "—"
+              ] }),
+              /* @__PURE__ */ jsxs("span", { style: { color: "#3b82f6", fontWeight: 600 }, children: [
+                /* @__PURE__ */ jsx("i", { className: "fas fa-eye" }),
+                " Ver detalle"
+              ] })
+            ] })
+          ] }),
+          /* @__PURE__ */ jsxs("div", { className: "menu-card-right", children: [
+            !m.is_active && /* @__PURE__ */ jsxs("button", { className: "menu-activate-btn", onClick: () => handleActivate(m.id), title: "Activar esta carta", children: [
+              /* @__PURE__ */ jsx("i", { className: "fas fa-check" }),
+              " Activar"
+            ] }),
+            m.is_active && /* @__PURE__ */ jsx("span", { className: "menu-active-label", children: "Activa" }),
+            /* @__PURE__ */ jsx("button", { className: "menu-duplicate-btn", onClick: () => handleDuplicate(m.id), title: "Duplicar carta", children: /* @__PURE__ */ jsx("i", { className: "fas fa-copy" }) }),
+            /* @__PURE__ */ jsx("button", { className: "menu-delete-btn", onClick: () => handleDelete(m.id, m.name), title: "Eliminar carta", children: /* @__PURE__ */ jsx("i", { className: "fas fa-trash-can" }) })
+          ] })
+        ] }, m.id)) })
+      ] }),
+      /* @__PURE__ */ jsxs("div", { className: "admin-note", style: { marginTop: 12 }, children: [
+        /* @__PURE__ */ jsx("i", { className: "fas fa-info-circle" }),
+        "Haz clic en ",
+        /* @__PURE__ */ jsx("strong", { children: '"Ver detalle"' }),
+        " para editar categorías, productos y horarios."
+      ] })
+    ] }),
+    editingMenu && /* @__PURE__ */ jsx(
+      DetailView,
+      {
+        menu: editingMenu,
+        authHeaders,
+        base,
+        onBack: () => setEditingMenu(null),
+        onRefresh: () => loadMenu(editingMenu.id),
+        onActivate: handleActivate,
+        onMsg: showMsg,
+        schMsg,
+        onSetSchedule: handleSetSchedule,
+        onAddCategory: handleAddCategory,
+        onDeleteCategory: handleDeleteCategory,
+        onAddItem: handleAddItem,
+        onEditItem: handleEditItem,
+        onDeleteItem: handleDeleteItem
+      }
+    )
+  ] });
+}
+function DetailView({ menu, authHeaders, base, onBack, onRefresh, onActivate, onMsg, schMsg, onSetSchedule, onAddCategory, onDeleteCategory, onAddItem, onEditItem, onDeleteItem }) {
+  const scheduledDays = menu.schedules.map((s) => s.day);
+  return /* @__PURE__ */ jsxs("div", { children: [
+    /* @__PURE__ */ jsxs("div", { style: { display: "flex", alignItems: "center", gap: 10, marginBottom: 16, flexWrap: "wrap" }, children: [
+      /* @__PURE__ */ jsxs("button", { className: "menu-back-btn", onClick: onBack, style: {
+        background: "#f1f5f9",
+        border: "1px solid #e2e8f0",
+        borderRadius: 10,
+        padding: "8px 14px",
+        cursor: "pointer",
+        fontSize: 13,
+        fontWeight: 600,
+        fontFamily: "inherit",
+        color: "#475569",
+        display: "flex",
+        alignItems: "center",
+        gap: 6
+      }, children: [
+        /* @__PURE__ */ jsx("i", { className: "fas fa-arrow-left" }),
+        " Volver"
+      ] }),
+      /* @__PURE__ */ jsxs("h3", { style: { flex: 1, fontSize: 18, fontWeight: 700, display: "flex", alignItems: "center", gap: 8 }, children: [
+        menu.name,
+        menu.is_active && /* @__PURE__ */ jsx("span", { className: "menu-active-label", children: "Activa" }),
+        !menu.is_active && /* @__PURE__ */ jsxs("button", { className: "menu-activate-btn", onClick: () => onActivate(menu.id), style: { fontSize: 11, padding: "4px 10px" }, children: [
+          /* @__PURE__ */ jsx("i", { className: "fas fa-check" }),
+          " Activar"
+        ] })
+      ] }),
+      /* @__PURE__ */ jsx("span", { className: "menu-slug", children: /* @__PURE__ */ jsx("code", { children: menu.slug }) })
     ] }),
     /* @__PURE__ */ jsxs("div", { className: "admin-section", children: [
       /* @__PURE__ */ jsxs("h3", { children: [
-        /* @__PURE__ */ jsx("i", { className: "fas fa-list" }),
-        " Cartas configuradas"
+        /* @__PURE__ */ jsx("i", { className: "fas fa-calendar" }),
+        " Programación por día"
       ] }),
-      loading ? /* @__PURE__ */ jsxs("div", { className: "admin-loading", children: [
-        /* @__PURE__ */ jsx("i", { className: "fas fa-spinner fa-spin" }),
-        " Cargando..."
-      ] }) : menus.length === 0 ? /* @__PURE__ */ jsxs("p", { className: "ban-empty", children: [
-        /* @__PURE__ */ jsx("i", { className: "fas fa-book" }),
-        " No hay cartas configuradas"
-      ] }) : /* @__PURE__ */ jsx("div", { className: "menu-list", children: menus.map((m) => /* @__PURE__ */ jsxs("div", { className: `menu-card ${m.is_active ? "active-menu" : ""}`, children: [
-        /* @__PURE__ */ jsxs("div", { className: "menu-card-left", children: [
-          /* @__PURE__ */ jsxs("div", { className: "menu-card-name", children: [
-            m.is_active && /* @__PURE__ */ jsx("span", { className: "menu-active-badge", children: /* @__PURE__ */ jsx("i", { className: "fas fa-check-circle" }) }),
-            /* @__PURE__ */ jsx("strong", { children: m.name }),
-            /* @__PURE__ */ jsx("span", { className: "menu-slug", children: /* @__PURE__ */ jsx("code", { children: m.slug }) })
+      /* @__PURE__ */ jsx("p", { style: { fontSize: 12, color: "#64748b", marginBottom: 10 }, children: "Selecciona los días en que esta carta debe activarse automáticamente." }),
+      /* @__PURE__ */ jsx("div", { style: { display: "flex", gap: 6, flexWrap: "wrap" }, children: DAY_NAMES.map((d, i) => {
+        const active = scheduledDays.includes(i);
+        return /* @__PURE__ */ jsxs(
+          "button",
+          {
+            onClick: () => onSetSchedule(menu.id, i, !active),
+            style: {
+              padding: "6px 12px",
+              borderRadius: 8,
+              border: active ? "2px solid #059669" : "1.5px solid #e2e8f0",
+              background: active ? "#f0fdf4" : "#fff",
+              color: active ? "#065f46" : "#64748b",
+              fontWeight: 700,
+              fontSize: 12,
+              cursor: "pointer",
+              fontFamily: "inherit",
+              transition: "all .15s"
+            },
+            children: [
+              active ? "✅ " : "",
+              d
+            ]
+          },
+          i
+        );
+      }) }),
+      schMsg && /* @__PURE__ */ jsx("div", { className: "ban-msg ban-msg-ok", style: { marginTop: 8, fontSize: 11 }, children: schMsg }),
+      scheduledDays.length > 0 && /* @__PURE__ */ jsxs("p", { style: { fontSize: 11, color: "#94a3b8", marginTop: 8 }, children: [
+        /* @__PURE__ */ jsx("i", { className: "fas fa-clock" }),
+        " Se activa los: ",
+        scheduledDays.sort().map((d) => DAY_FULL[d]).join(", ")
+      ] })
+    ] }),
+    /* @__PURE__ */ jsxs("div", { className: "admin-section", children: [
+      /* @__PURE__ */ jsxs("h3", { children: [
+        /* @__PURE__ */ jsx("i", { className: "fas fa-eye" }),
+        " Vista previa"
+      ] }),
+      menu.categories.length === 0 ? /* @__PURE__ */ jsxs("p", { className: "ban-empty", children: [
+        /* @__PURE__ */ jsx("i", { className: "fas fa-folder-open" }),
+        " Sin categorías"
+      ] }) : /* @__PURE__ */ jsxs(Fragment, { children: [
+        /* @__PURE__ */ jsxs("div", { style: { display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 12 }, children: [
+          /* @__PURE__ */ jsxs("span", { style: { fontSize: 11, color: "#94a3b8", padding: "4px 0", marginRight: 4 }, children: [
+            "Categorías (",
+            menu.categories.length,
+            "):"
           ] }),
-          m.description && /* @__PURE__ */ jsx("div", { className: "menu-card-desc", children: m.description }),
-          /* @__PURE__ */ jsxs("div", { className: "menu-card-meta", children: [
-            "Creada ",
-            m.created_at ? new Date(m.created_at).toLocaleDateString("es-ES") : "—"
+          menu.categories.map((c) => /* @__PURE__ */ jsxs("span", { style: {
+            background: "#f1f5f9",
+            padding: "3px 8px",
+            borderRadius: 6,
+            fontSize: 11,
+            color: "#475569",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 4
+          }, children: [
+            /* @__PURE__ */ jsx("i", { className: `fas ${c.icon}`, style: { fontSize: 9 } }),
+            " ",
+            c.label,
+            /* @__PURE__ */ jsxs("span", { style: { color: "#94a3b8", fontSize: 10 }, children: [
+              "(",
+              c.items.length,
+              ")"
+            ] }),
+            /* @__PURE__ */ jsx(
+              "button",
+              {
+                onClick: () => onDeleteCategory(c.id, menu.id),
+                style: { background: "none", border: "none", color: "#ef4444", cursor: "pointer", fontSize: 10, padding: 0 },
+                children: "✕"
+              }
+            )
+          ] }, c.id)),
+          /* @__PURE__ */ jsxs("button", { onClick: () => onAddCategory(menu.id), style: {
+            background: "none",
+            border: "1px dashed #94a3b8",
+            borderRadius: 6,
+            padding: "3px 8px",
+            fontSize: 11,
+            color: "#64748b",
+            cursor: "pointer",
+            fontFamily: "inherit"
+          }, children: [
+            /* @__PURE__ */ jsx("i", { className: "fas fa-plus" }),
+            " Añadir"
           ] })
         ] }),
-        /* @__PURE__ */ jsxs("div", { className: "menu-card-right", children: [
-          !m.is_active && /* @__PURE__ */ jsxs("button", { className: "menu-activate-btn", onClick: () => handleActivate(m.id), title: "Activar esta carta", children: [
-            /* @__PURE__ */ jsx("i", { className: "fas fa-check" }),
-            " Activar"
+        menu.categories.map((c) => /* @__PURE__ */ jsxs("div", { style: { marginBottom: 12, border: "1px solid #e2e8f0", borderRadius: 10, padding: 12, background: "#fafafa" }, children: [
+          /* @__PURE__ */ jsxs("div", { style: { display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }, children: [
+            /* @__PURE__ */ jsx("i", { className: `fas ${c.icon}`, style: { color: "#059669", fontSize: 12 } }),
+            /* @__PURE__ */ jsx("strong", { style: { fontSize: 13 }, children: c.label }),
+            /* @__PURE__ */ jsxs("span", { style: { fontSize: 10, color: "#94a3b8" }, children: [
+              "key: ",
+              c.key
+            ] }),
+            /* @__PURE__ */ jsxs("button", { onClick: () => onAddItem(c.id, menu.id), style: {
+              marginLeft: "auto",
+              background: "#f0fdf4",
+              border: "1px solid #86efac",
+              borderRadius: 6,
+              padding: "3px 10px",
+              fontSize: 11,
+              fontWeight: 600,
+              color: "#059669",
+              cursor: "pointer",
+              fontFamily: "inherit"
+            }, children: [
+              /* @__PURE__ */ jsx("i", { className: "fas fa-plus" }),
+              " Producto"
+            ] })
           ] }),
-          m.is_active && /* @__PURE__ */ jsx("span", { className: "menu-active-label", children: "Activa" }),
-          /* @__PURE__ */ jsx("button", { className: "menu-delete-btn", onClick: () => handleDelete(m.id, m.name), title: "Eliminar carta", children: /* @__PURE__ */ jsx("i", { className: "fas fa-trash-can" }) })
-        ] })
-      ] }, m.id)) })
-    ] }),
-    /* @__PURE__ */ jsxs("div", { className: "admin-note", style: { marginTop: 12 }, children: [
-      /* @__PURE__ */ jsx("i", { className: "fas fa-info-circle" }),
-      "Al activar una carta, se desactiva automáticamente la anterior. Los cambios se reflejan al instante en la app."
+          c.items.length === 0 ? /* @__PURE__ */ jsx("p", { style: { fontSize: 11, color: "#94a3b8", padding: "8px 0" }, children: "Sin productos" }) : /* @__PURE__ */ jsx("div", { style: { display: "flex", flexDirection: "column", gap: 4 }, children: c.items.map((i) => /* @__PURE__ */ jsxs("div", { style: {
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            padding: "5px 8px",
+            background: "#fff",
+            borderRadius: 6,
+            border: "1px solid #f1f5f9",
+            fontSize: 12
+          }, children: [
+            i.code && /* @__PURE__ */ jsxs("span", { style: { color: "#94a3b8", fontWeight: 700, fontSize: 10 }, children: [
+              "#",
+              i.code
+            ] }),
+            /* @__PURE__ */ jsx("span", { style: { flex: 1, fontWeight: 600 }, children: i.name }),
+            i.ingredients && /* @__PURE__ */ jsx("span", { style: { color: "#94a3b8", fontSize: 10 }, children: i.ingredients }),
+            /* @__PURE__ */ jsx("span", { style: { fontWeight: 700, color: "#059669" }, children: i.price }),
+            /* @__PURE__ */ jsx("button", { onClick: () => onEditItem(i, c.id, menu.id), style: {
+              background: "none",
+              border: "none",
+              color: "#3b82f6",
+              cursor: "pointer",
+              fontSize: 11
+            }, children: /* @__PURE__ */ jsx("i", { className: "fas fa-pen" }) }),
+            /* @__PURE__ */ jsx("button", { onClick: () => onDeleteItem(i.id, i.name, menu.id), style: {
+              background: "none",
+              border: "none",
+              color: "#ef4444",
+              cursor: "pointer",
+              fontSize: 11
+            }, children: /* @__PURE__ */ jsx("i", { className: "fas fa-trash-can" }) })
+          ] }, i.id)) })
+        ] }, c.id))
+      ] })
     ] })
   ] });
 }
+const dupStyle = document.createElement("style");
+dupStyle.textContent = `
+  .menu-duplicate-btn {
+    background: none; border: 1px solid #e2e8f0; border-radius: 8px;
+    width: 32px; height: 32px; cursor: pointer; font-size: 13px;
+    color: #3b82f6; display: flex; align-items: center; justify-content: center;
+    transition: all .15s;
+  }
+  .menu-duplicate-btn:hover { background: #eff6ff; border-color: #93c5fd; }
+`;
+document.head.appendChild(dupStyle);
 function AdminPanel({ onClose }) {
   const [token, setToken] = useState(null);
   const [tab, setTab] = useState("stats");
