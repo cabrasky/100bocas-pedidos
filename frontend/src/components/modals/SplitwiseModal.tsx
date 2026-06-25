@@ -65,6 +65,11 @@ function computeSettlement(historyOrders: HistoryOrder[], persons: Person[]) {
         netBalance[person] = (netBalance[person] || 0) - consumption;
       }
     });
+
+    // Payer may not have consumed anything (just paid the bill)
+    if (!(payer in personConsumption)) {
+      netBalance[payer] = (netBalance[payer] || 0) + totalOrder;
+    }
   });
 
   let currentRoundTotal = 0;

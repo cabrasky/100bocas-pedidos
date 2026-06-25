@@ -2517,6 +2517,9 @@ function computeSettlement(historyOrders, persons) {
         netBalance[person] = (netBalance[person] || 0) - consumption;
       }
     });
+    if (!(payer in personConsumption)) {
+      netBalance[payer] = (netBalance[payer] || 0) + totalOrder;
+    }
   });
   let currentRoundTotal = 0;
   persons.forEach((p) => {
