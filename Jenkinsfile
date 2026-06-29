@@ -69,7 +69,7 @@ pipeline {
             }
             steps {
                 dir('frontend') {
-                    sh 'npm ci --omit=optional'
+                    sh 'npm ci'
                     sh 'npx vite build --outDir ../dist/client'
                     sh 'npx vite build --ssr src/entry-server.tsx --outDir ../dist/server'
                 }
