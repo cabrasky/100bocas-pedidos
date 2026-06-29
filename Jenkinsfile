@@ -9,6 +9,7 @@ pipeline {
         K8S_OVERLAY = "k8s/overlays/production"
         BACKEND_IMAGE = "${REGISTRY}/bocas-backend"
         FRONTEND_IMAGE = "${REGISTRY}/bocas-frontend"
+        KUBECONFIG = "/var/lib/jenkins/.kube/config"
     }
 
     parameters {
