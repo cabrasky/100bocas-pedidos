@@ -40,7 +40,7 @@ pipeline {
 
         stage('Check Image Exists') {
             when {
-                not { params.FORCE_DEPLOY }
+                expression { return !params.FORCE_DEPLOY }
             }
             steps {
                 script {
