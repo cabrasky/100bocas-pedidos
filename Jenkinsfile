@@ -29,7 +29,7 @@ pipeline {
         stage('Read Version') {
             steps {
                 script {
-                    def pkg = sh(script: 'python3 -c "import json; d=json.load(open(\"frontend/package.json\")); print(d[\"version\"])"', returnStdout: true).trim()
+                    def pkg = sh(script: "python3 -c 'import json; print(json.load(open(\"frontend/package.json\"))[\"version\"])'", returnStdout: true).trim()
                     env.APP_VERSION = pkg
                     env.GIT_SHORT = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
                     env.IMAGE_TAG = "${env.APP_VERSION}-${env.GIT_SHORT}"
