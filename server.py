@@ -23,7 +23,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 
 # ── Config ────────────────────────────────────────
-DB_DSN = os.getenv("BOCAS_DB", "postgresql://euromania:***@localhost:5432/euromania")
+DB_DSN = os.getenv("BOCAS_DB", "postgresql://bocas@localhost:5433/100bocas")
 HOST = os.getenv("BOCAS_HOST", "0.0.0.0")
 PORT = int(os.getenv("BOCAS_PORT", "8112"))
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "dist", "client")

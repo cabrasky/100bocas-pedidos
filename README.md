@@ -134,7 +134,7 @@ node ../ssr-server.mjs
 
 | Variable | Descripción | Defecto |
 |---|---|---|
-| `BOCAS_DB` | DSN de PostgreSQL | `postgresql://euromania@localhost:5432/euromania` |
+| `BOCAS_DB` | DSN de PostgreSQL | `postgresql://bocas@localhost:5433/100bocas` |
 | `BOCAS_HOST` | Host del servidor | `0.0.0.0` |
 | `BOCAS_PORT` | Puerto del servidor | `8112` |
 | `BOCAS_MAX_RPM` | Límite de req/min por IP | `120` |
