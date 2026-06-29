@@ -163,7 +163,7 @@ function LiquidacionModal({ open, onClose, persons, sessionCode }: Props) {
   const formatPrice = (n: number) => n.toFixed(2).replace('.', ',') + '€';
 
   const getSummaryText = () => {
-    let text = `🛵 Euromania · ${sessionCode}\n`;
+    let text = `🛵 100Bocas · ${sessionCode}\\n`;
     text += `━`.repeat(30) + '\n\n';
 
     // Per-person with rounds
@@ -273,7 +273,7 @@ function LiquidacionModal({ open, onClose, persons, sessionCode }: Props) {
               {/* Header */}
               <div className="sw-header">
                 <span className="sw-session">
-                  🛵 Euromania · {sessionCode}
+                  🛵 100Bocas · {sessionCode}
                   {' · '}{roundDetails.length} ronda{roundDetails.length !== 1 ? 's' : ''}
                   {hasActive ? ' + activa' : ''}
                 </span>

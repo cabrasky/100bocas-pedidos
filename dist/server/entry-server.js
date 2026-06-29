@@ -49,28 +49,28 @@ function LandingPage() {
   }, [selectedIdx, close, prev, next]);
   return /* @__PURE__ */ jsxs("div", { children: [
     /* @__PURE__ */ jsxs(Helmet, { children: [
-      /* @__PURE__ */ jsx("title", { children: "Euromania — Pedidos Colaborativos en Tiempo Real" }),
+      /* @__PURE__ */ jsx("title", { children: "100Bocas — Pedidos Colaborativos en Tiempo Real" }),
       /* @__PURE__ */ jsx("meta", { name: "description", content: "Crea una sesión de pedidos en grupo, comparte el código con tus amigos y haced el pedido juntos en tiempo real. Sin registros, sin complicaciones. Proyecto independiente by cabrasky." }),
-      /* @__PURE__ */ jsx("meta", { name: "keywords", content: "euromania, 100 montaditos, 100mon, montaditos, pedidos colaborativos, pedidos en grupo, comida, tiempo real, menú, pedir montaditos online, menú 100 montaditos, cena grupo, comida rápida, montaditos online, pedido restaurante, montaditos a domicilio" }),
+      /* @__PURE__ */ jsx("meta", { name: "keywords", content: "100bocas, 100 montaditos, 100mon, montaditos, pedidos colaborativos, pedidos en grupo, comida, tiempo real, menú, pedir montaditos online, menú 100 montaditos, cena grupo, comida rápida, montaditos online, pedido restaurante, montaditos a domicilio" }),
       /* @__PURE__ */ jsx("meta", { name: "author", content: "cabrasky — Javier Mateos Mata" }),
       /* @__PURE__ */ jsx("meta", { name: "robots", content: "index, follow" }),
-      /* @__PURE__ */ jsx("link", { rel: "canonical", href: "https://euromania.cabrasky.net/" }),
+      /* @__PURE__ */ jsx("link", { rel: "canonical", href: "https://100bocas.cabrasky.net/" }),
       /* @__PURE__ */ jsx("meta", { property: "og:type", content: "website" }),
-      /* @__PURE__ */ jsx("meta", { property: "og:url", content: "https://euromania.cabrasky.net/" }),
-      /* @__PURE__ */ jsx("meta", { property: "og:title", content: "Euromania — Pedidos Colaborativos en Tiempo Real" }),
+      /* @__PURE__ */ jsx("meta", { property: "og:url", content: "https://100bocas.cabrasky.net/" }),
+      /* @__PURE__ */ jsx("meta", { property: "og:title", content: "100Bocas — Pedidos Colaborativos en Tiempo Real" }),
       /* @__PURE__ */ jsx("meta", { property: "og:description", content: "Crea una sesión, comparte el código QR y haced el pedido juntos en tiempo real. Sin registros. Proyecto independiente." }),
-      /* @__PURE__ */ jsx("meta", { property: "og:image", content: "https://euromania.cabrasky.net/favicon.svg" }),
+      /* @__PURE__ */ jsx("meta", { property: "og:image", content: "https://100bocas.cabrasky.net/favicon.svg" }),
       /* @__PURE__ */ jsx("meta", { property: "og:locale", content: "es_ES" }),
-      /* @__PURE__ */ jsx("meta", { property: "og:site_name", content: "Euromania — Pedidos Colaborativos" }),
+      /* @__PURE__ */ jsx("meta", { property: "og:site_name", content: "100Bocas — Pedidos Colaborativos" }),
       /* @__PURE__ */ jsx("meta", { name: "twitter:card", content: "summary" }),
-      /* @__PURE__ */ jsx("meta", { name: "twitter:title", content: "Euromania — Pedidos Colaborativos" }),
+      /* @__PURE__ */ jsx("meta", { name: "twitter:title", content: "100Bocas — Pedidos Colaborativos" }),
       /* @__PURE__ */ jsx("meta", { name: "twitter:description", content: "Crea una sesión, comparte el código y haced el pedido juntos en tiempo real. Sin registros." }),
-      /* @__PURE__ */ jsx("meta", { name: "twitter:image", content: "https://euromania.cabrasky.net/favicon.svg" }),
+      /* @__PURE__ */ jsx("meta", { name: "twitter:image", content: "https://100bocas.cabrasky.net/favicon.svg" }),
       /* @__PURE__ */ jsx("script", { type: "application/ld+json", children: JSON.stringify({
         "@context": "https://schema.org",
         "@type": "WebApplication",
-        "name": "Euromania — Pedidos Colaborativos",
-        "url": "https://euromania.cabrasky.net/",
+        "name": "100Bocas — Pedidos Colaborativos",
+        "url": "https://100bocas.cabrasky.net/",
         "description": "Aplicación web para crear sesiones de pedidos en grupo en tiempo real.",
         "applicationCategory": "LifestyleApplication",
         "author": { "@type": "Person", "name": "Javier Mateos Mata", "url": "https://github.com/cabrasky" },
@@ -84,7 +84,7 @@ function LandingPage() {
         " Proyecto independiente"
       ] }),
       /* @__PURE__ */ jsxs("h1", { children: [
-        /* @__PURE__ */ jsx("i", { children: "Euromania" }),
+        /* @__PURE__ */ jsx("i", { children: "100Bocas" }),
         /* @__PURE__ */ jsx("br", {}),
         "Pedidos Colaborativos"
       ] }),
@@ -162,7 +162,7 @@ function LandingPage() {
     ] }) }) }),
     /* @__PURE__ */ jsx("footer", { className: "landing-footer", children: /* @__PURE__ */ jsxs("div", { className: "landing-footer-inner", children: [
       /* @__PURE__ */ jsx("div", { className: "landing-footer-icon", children: /* @__PURE__ */ jsx("i", { className: "fas fa-utensils" }) }),
-      /* @__PURE__ */ jsx("h3", { children: "Euromania — Pedidos Colaborativos" }),
+      /* @__PURE__ */ jsx("h3", { children: "100Bocas — Pedidos Colaborativos" }),
       /* @__PURE__ */ jsxs("p", { children: [
         /* @__PURE__ */ jsx("i", { className: "fas fa-code" }),
         " Desarrollado por ",
@@ -181,11 +181,11 @@ function LandingPage() {
           "."
         ] }),
         /* @__PURE__ */ jsxs("p", { children: [
-          /* @__PURE__ */ jsx("a", { href: "https://github.com/cabrasky/euromania-pedidos", target: "_blank", rel: "noopener", children: "Ver en GitHub" }),
+          /* @__PURE__ */ jsx("a", { href: "https://github.com/cabrasky/100bocas-pedidos", target: "_blank", rel: "noopener", children: "Ver en GitHub" }),
           " · ",
-          /* @__PURE__ */ jsx("a", { href: "https://github.com/cabrasky/euromania-pedidos/issues/new", target: "_blank", rel: "noopener", children: "Abrir issue" }),
+          /* @__PURE__ */ jsx("a", { href: "https://github.com/cabrasky/100bocas-pedidos/issues/new", target: "_blank", rel: "noopener", children: "Abrir issue" }),
           " · ",
-          /* @__PURE__ */ jsx("a", { href: "https://github.com/cabrasky/euromania-pedidos/issues", target: "_blank", rel: "noopener", children: "Sugerir mejora" })
+          /* @__PURE__ */ jsx("a", { href: "https://github.com/cabrasky/100bocas-pedidos/issues", target: "_blank", rel: "noopener", children: "Sugerir mejora" })
         ] })
       ] }),
       /* @__PURE__ */ jsx("div", { className: "landing-footer-divider" }),
@@ -515,7 +515,7 @@ function removeItem(code, personName, itemKey) {
 function clearPerson(code, personName) {
   return api("DELETE", `/api/session/${code}/person/${encodeURIComponent(personName)}/clear`);
 }
-const COOKIE_NAME = "euromania";
+const COOKIE_NAME = "100bocas";
 function setSessionCookie(code, name) {
   const val = encodeURIComponent(JSON.stringify({ code, name }));
   document.cookie = `${COOKIE_NAME}=${val};path=/;max-age=${30 * 24 * 3600};SameSite=Lax`;
@@ -628,7 +628,7 @@ function AdminLogin({ onLogin }) {
   ] }) });
 }
 const CAT_LABELS = {
-  euromania: "Euromania",
+  bocas: "100Bocas",
   clasicos: "Clásicos",
   imprescindibles: "Imprescindibles",
   especiales: "Especiales",
@@ -1206,7 +1206,7 @@ function AdminMenus({ authHeaders, base }) {
             {
               type: "text",
               className: "menu-input",
-              placeholder: "Slug (ej: euromania)",
+              placeholder: "Slug (ej: bocas)",
               value: newSlug,
               onChange: (e) => setNewSlug(e.target.value.toLowerCase().replace(/\s+/g, "-"))
             }
@@ -1583,7 +1583,7 @@ function LoginScreen({ onLogin }) {
     /* @__PURE__ */ jsx("div", { className: "login-overlay", children: /* @__PURE__ */ jsxs("div", { className: "login-card", children: [
       /* @__PURE__ */ jsxs("h2", { children: [
         /* @__PURE__ */ jsx("i", { className: "fas fa-utensils" }),
-        " Euromania"
+        " 100Bocas"
       ] }),
       /* @__PURE__ */ jsx("div", { className: "login-sub", children: "Pedidos colaborativos en tiempo real" }),
       error && /* @__PURE__ */ jsxs("div", { className: "login-error", children: [
@@ -1644,13 +1644,7 @@ function LoginScreen({ onLogin }) {
 function Header({ myName, sessionCode, onCopyCode, onShowQR, onLeave, onShowPrivacy, sessionUrl, menuName }) {
   const handleShareWhatsApp = () => {
     const msg = encodeURIComponent(
-      `🍔 *Euromania — Pedido Colaborativo*
-
-Código: *${sessionCode}*
-
-Únete aquí: ${sessionUrl}
-
-Añade tus montaditos y coordinamos el pedido 🎉`
+      `🍔 *100Bocas — Pedido Colaborativo*\\n\\nCódigo: *${sessionCode}*\\n\\nÚnete aquí: ${sessionUrl}\\n\\nAñade tus montaditos y coordinamos el pedido 🎉`
     );
     window.open(`https://wa.me/?text=${msg}`, "_blank");
   };
@@ -1658,7 +1652,7 @@ Añade tus montaditos y coordinamos el pedido 🎉`
     /* @__PURE__ */ jsxs("div", { className: "header-left", children: [
       /* @__PURE__ */ jsxs("h1", { children: [
         /* @__PURE__ */ jsx("i", { className: "fas fa-utensils" }),
-        "Euromania"
+        "100Bocas"
       ] }),
       /* @__PURE__ */ jsxs("div", { className: "subtitle", children: [
         "Conectado como ",
@@ -1679,7 +1673,7 @@ Añade tus montaditos y coordinamos el pedido 🎉`
       ] }),
       /* @__PURE__ */ jsx("button", { className: "header-btn", onClick: onShowQR, title: "Mostrar código QR", children: /* @__PURE__ */ jsx("i", { className: "fas fa-qrcode" }) }),
       /* @__PURE__ */ jsx("button", { className: "header-btn whatsapp", onClick: handleShareWhatsApp, title: "Compartir por WhatsApp", children: /* @__PURE__ */ jsx("i", { className: "fab fa-whatsapp" }) }),
-      /* @__PURE__ */ jsx("a", { href: "https://github.com/cabrasky/euromania-pedidos", target: "_blank", rel: "noopener", className: "header-btn github", title: "Ver en GitHub (código abierto)", children: /* @__PURE__ */ jsx("i", { className: "fab fa-github" }) }),
+      /* @__PURE__ */ jsx("a", { href: "https://github.com/cabrasky/100bocas-pedidos", target: "_blank", rel: "noopener", className: "header-btn github", title: "Ver en GitHub (código abierto)", children: /* @__PURE__ */ jsx("i", { className: "fab fa-github" }) }),
       /* @__PURE__ */ jsx("button", { className: "header-btn", onClick: onShowPrivacy, title: "Aviso legal y privacidad", children: /* @__PURE__ */ jsx("i", { className: "fas fa-shield-halved" }) }),
       /* @__PURE__ */ jsxs("button", { className: "leave-btn", onClick: onLeave, title: "Salir de la sesión", children: [
         /* @__PURE__ */ jsx("i", { className: "fas fa-right-from-bracket" }),
@@ -2643,8 +2637,7 @@ function LiquidacionModal({ open, onClose, persons, sessionCode }) {
   const { personTotals, groupTotal, settlements, roundDetails, hasActive } = computed;
   const formatPrice = (n) => n.toFixed(2).replace(".", ",") + "€";
   const getSummaryText = () => {
-    let text = `🛵 Euromania · ${sessionCode}
-`;
+    let text = `🛵 100Bocas · ${sessionCode}\\n`;
     text += `━`.repeat(30) + "\n\n";
     personTotals.forEach((pt) => {
       text += `👤 ${pt.name}: ${formatPrice(pt.total)}
@@ -2741,7 +2734,7 @@ function LiquidacionModal({ open, onClose, persons, sessionCode }) {
       /* @__PURE__ */ jsx("p", { children: "Sin datos para liquidar" })
     ] }) : /* @__PURE__ */ jsxs(Fragment, { children: [
       /* @__PURE__ */ jsx("div", { className: "sw-header", children: /* @__PURE__ */ jsxs("span", { className: "sw-session", children: [
-        "🛵 Euromania · ",
+        "🛵 100Bocas · ",
         sessionCode,
         " · ",
         roundDetails.length,
@@ -2933,7 +2926,7 @@ function OrderPage() {
       await addPerson(data.code, name);
       enterSession(data.code, name);
       loadSession(data.code, name);
-      const url = `https://euromania.cabrasky.net/app?session=${data.code}`;
+      const url = `https://100bocas.cabrasky.net/app?session=${data.code}`;
       navigator.clipboard.writeText(url).then(() => {
         addToast("📋 Link de la sesión copiado al portapapeles", "info", 4e3);
       }).catch(() => {
@@ -3100,7 +3093,7 @@ function OrderPage() {
       addToast("❌ Error al realizar el pedido", "remove");
     }
   }, [sessionCode, myName, addToast]);
-  const sessionUrl = `https://euromania.cabrasky.net/app?session=${sessionCode}`;
+  const sessionUrl = `https://100bocas.cabrasky.net/app?session=${sessionCode}`;
   if (loading) {
     return /* @__PURE__ */ jsxs("div", { style: { display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", color: "#94a3b8" }, children: [
       /* @__PURE__ */ jsx("i", { className: "fas fa-spinner fa-spin", style: { fontSize: 24, marginRight: 8 } }),

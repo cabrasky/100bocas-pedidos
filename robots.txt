@@ -4,4 +4,4 @@ Allow: /app
 Disallow: /api/
 Disallow: /ws/
 
-Sitemap: https://euromania.cabrasky.net/sitemap.xml
+Sitemap: https://100bocas.cabrasky.net/sitemap.xml

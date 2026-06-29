@@ -4,7 +4,7 @@ import asyncio
 import asyncpg
 import os
 
-DB_DSN = os.getenv("EUROMANIA_DB", "postgresql://euromania@localhost:5433/euromania")
+DB_DSN = os.getenv("BOCAS_DB", "postgresql://euromania@localhost:5433/euromania")
 
 # ── Full menu data (same as frontend/src/types.ts) ──
 MENU = {

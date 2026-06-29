@@ -165,7 +165,7 @@ function ssrRender(req, res) {
       const titleStr = helmet.title?.toString();
       const metaStr = helmet.meta?.toString();
       if (titleStr) {
-        fullHtml = fullHtml.replace('<title>Euromania — App de Pedidos Colaborativos</title>', titleStr);
+        fullHtml = fullHtml.replace('<title>100Bocas — App de Pedidos Colaborativos</title>', titleStr);
       }
       if (metaStr) {
         fullHtml = fullHtml.replace('</head>', `${metaStr}\n</head>`);

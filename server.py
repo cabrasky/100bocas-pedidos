@@ -1,5 +1,5 @@
 """
-Euromania — collaborative order server
+100Bocas — collaborative order server
 FastAPI + PostgreSQL + WebSockets
 """
 from __future__ import annotations
@@ -23,24 +23,24 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 
 # ── Config ────────────────────────────────────────
-DB_DSN = os.getenv("EUROMANIA_DB", "postgresql://euromania:***@localhost:5432/euromania")
-HOST = os.getenv("EUROMANIA_HOST", "0.0.0.0")
-PORT = int(os.getenv("EUROMANIA_PORT", "8112"))
+DB_DSN = os.getenv("BOCAS_DB", "postgresql://euromania:***@localhost:5432/euromania")
+HOST = os.getenv("BOCAS_HOST", "0.0.0.0")
+PORT = int(os.getenv("BOCAS_PORT", "8112"))
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "dist", "client")
-CLEANUP_INTERVAL = int(os.getenv("EUROMANIA_CLEANUP_INTERVAL", "1800"))
-SESSION_TTL = int(os.getenv("EUROMANIA_SESSION_TTL", "86400"))
-SESSION_MAX_AGE = int(os.getenv("EUROMANIA_SESSION_MAX_AGE", "432000"))  # 5 days max storage
+CLEANUP_INTERVAL = int(os.getenv("BOCAS_CLEANUP_INTERVAL", "1800"))
+SESSION_TTL = int(os.getenv("BOCAS_SESSION_TTL", "86400"))
+SESSION_MAX_AGE = int(os.getenv("BOCAS_SESSION_MAX_AGE", "432000"))  # 5 days max storage
 
 # ── Security limits ───────────────────────────────
-MAX_REQUESTS_PER_MIN = int(os.getenv("EUROMANIA_MAX_RPM", "120"))      # API calls/IP/min
-MAX_WS_PER_IP = int(os.getenv("EUROMANIA_MAX_WS_IP", "5"))             # WS connections/IP
-MAX_WS_PER_SESSION = int(os.getenv("EUROMANIA_MAX_WS_SESSION", "50"))  # WS connections/session
-MAX_WS_TOTAL = int(os.getenv("EUROMANIA_MAX_WS_TOTAL", "200"))         # Total WS limit
-MAX_BODY_SIZE = int(os.getenv("EUROMANIA_MAX_BODY", "10000"))          # Max JSON body bytes
-MAX_NAME_LENGTH = int(os.getenv("EUROMANIA_MAX_NAME", "30"))           # Max person name length
-JOIN_RATE_LIMIT = int(os.getenv("EUROMANIA_JOIN_LIMIT", "10"))         # Max failed joins/min
-WS_RECEIVE_TIMEOUT = int(os.getenv("EUROMANIA_WS_TIMEOUT", "300"))     # WS idle timeout (5 min)
-TRUSTED_PROXIES = os.getenv("EUROMANIA_TRUSTED_PROXIES", "192.168.0.0/16,10.0.0.0/8,172.16.0.0/12").split(",")
+MAX_REQUESTS_PER_MIN = int(os.getenv("BOCAS_MAX_RPM", "120"))      # API calls/IP/min
+MAX_WS_PER_IP = int(os.getenv("BOCAS_MAX_WS_IP", "5"))             # WS connections/IP
+MAX_WS_PER_SESSION = int(os.getenv("BOCAS_MAX_WS_SESSION", "50"))  # WS connections/session
+MAX_WS_TOTAL = int(os.getenv("BOCAS_MAX_WS_TOTAL", "200"))         # Total WS limit
+MAX_BODY_SIZE = int(os.getenv("BOCAS_MAX_BODY", "10000"))          # Max JSON body bytes
+MAX_NAME_LENGTH = int(os.getenv("BOCAS_MAX_NAME", "30"))           # Max person name length
+JOIN_RATE_LIMIT = int(os.getenv("BOCAS_JOIN_LIMIT", "10"))         # Max failed joins/min
+WS_RECEIVE_TIMEOUT = int(os.getenv("BOCAS_WS_TIMEOUT", "300"))     # WS idle timeout (5 min)
+TRUSTED_PROXIES = os.getenv("BOCAS_TRUSTED_PROXIES", "192.168.0.0/16,10.0.0.0/8,172.16.0.0/12").split(",")
 
 # ── Rate limiter state ────────────────────────────
 _rpm: dict[str, list[float]] = defaultdict(list)       # IP -> list of timestamps
@@ -161,8 +161,8 @@ async def periodic_cleanup():
 
 # ── IP Ban system ────────────────────────────────
 BANNED_IPS_FILE = os.path.join(os.path.dirname(__file__), "banned_ips.json")
-AUTO_BAN_THRESHOLD = int(os.getenv("EUROMANIA_AUTO_BAN_THRESHOLD", "5"))   # Rate limit hits before auto-ban
-AUTO_BAN_DURATION = int(os.getenv("EUROMANIA_AUTO_BAN_DURATION", "86400"))  # 24h auto-ban duration (secs)
+AUTO_BAN_THRESHOLD = int(os.getenv("BOCAS_AUTO_BAN_THRESHOLD", "5"))   # Rate limit hits before auto-ban
+AUTO_BAN_DURATION = int(os.getenv("BOCAS_AUTO_BAN_DURATION", "86400"))  # 24h auto-ban duration (secs)
 
 _banned_ips: dict[str, dict] = {}  # ip -> {banned_at, reason, auto_ban, expires_at}
 _ban_lock = asyncio.Lock()
@@ -240,12 +240,12 @@ def _record_rpm_violation(ip: str):
 
 
 # ── Admin auth ────────────────────────────────────
-ADMIN_PASSWORD = os.getenv("EUROMANIA_ADMIN_PASSWORD", "")
+ADMIN_PASSWORD = os.getenv("BOCAS_ADMIN_PASSWORD", "")
 if not ADMIN_PASSWORD:
     # Generate a random password and print it
     ADMIN_PASSWORD = ''.join(random.choices(string.ascii_letters + string.digits, k=12))
-    print(f"[auth] ⚠️  EUROMANIA_ADMIN_PASSWORD not set. Generated: {ADMIN_PASSWORD}")
-    print(f"[auth] Set EUROMANIA_ADMIN_PASSWORD env var to use a custom password.")
+    print(f"[auth] ⚠️  BOCAS_ADMIN_PASSWORD not set. Generated: {ADMIN_PASSWORD}")
+    print(f"[auth] Set BOCAS_ADMIN_PASSWORD env var to use a custom password.")
 
 ADMIN_SERVER_SECRET = ''.join(random.choices(string.ascii_letters + string.digits, k=32))
 _admin_token: str | None = None

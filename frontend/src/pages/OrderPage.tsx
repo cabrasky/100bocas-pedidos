@@ -136,7 +136,7 @@ function OrderPage() {
       await addPerson(data.code, name);
       enterSession(data.code, name);
       loadSession(data.code, name);
-      const url = `https://euromania.cabrasky.net/app?session=${data.code}`;
+      const url = `https://100bocas.cabrasky.net/app?session=${data.code}`;
       navigator.clipboard.writeText(url).then(() => {
         addToast('📋 Link de la sesión copiado al portapapeles', 'info', 4000);
       }).catch(() => {});
@@ -308,7 +308,7 @@ function OrderPage() {
     }
   }, [sessionCode, myName, addToast]);
 
-  const sessionUrl = `https://euromania.cabrasky.net/app?session=${sessionCode}`;
+  const sessionUrl = `https://100bocas.cabrasky.net/app?session=${sessionCode}`;
 
   if (loading) {
     return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: '#94a3b8' }}>

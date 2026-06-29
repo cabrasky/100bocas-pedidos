@@ -198,7 +198,7 @@ function AdminMenus({ authHeaders, base }: Props) {
             <div className="menu-create-form">
               <input type="text" className="menu-input" placeholder="Nombre (ej: Euromanía 1€)" value={newName}
                 onChange={e => setNewName(e.target.value)} />
-              <input type="text" className="menu-input" placeholder="Slug (ej: euromania)" value={newSlug}
+              <input type="text" className="menu-input" placeholder="Slug (ej: bocas)" value={newSlug}
                 onChange={e => setNewSlug(e.target.value.toLowerCase().replace(/\s+/g, '-'))} />
               <input type="text" className="menu-input" placeholder="Descripción (opcional)" value={newDesc}
                 onChange={e => setNewDesc(e.target.value)} />

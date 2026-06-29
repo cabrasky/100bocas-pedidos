@@ -3,180 +3,127 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-  <!-- ── SEO Básico ───────────────────────────── -->
-  <title>Euromania — Pedidos Colaborativos en Tiempo Real</title>
+  <title>100Bocas — Pedidos Colaborativos en Tiempo Real</title>
   <meta name="description" content="Crea una sesión de pedidos en grupo, comparte el código con tus amigos y haced el pedido juntos en tiempo real. Sin registros, sin complicaciones. Proyecto independiente by cabrasky.">
-  <meta name="keywords" content="euromania, 100 montaditos, 100mon, montaditos, pedidos colaborativos, pedidos en grupo, comida, tiempo real, menú, pedir montaditos online, menú 100 montaditos, cena grupo, comida rápida, montaditos online, pedido restaurante, montaditos a domicilio">
+  <meta name="keywords" content="100bocas, 100 montaditos, 100mon, montaditos, pedidos colaborativos, pedidos en grupo, comida, tiempo real, menú, pedir montaditos online, menú 100 montaditos, cena grupo, comida rápida, montaditos online, pedido restaurante, montaditos a domicilio">
   <meta name="author" content="cabrasky — Javier Mateos Mata">
   <meta name="robots" content="index, follow">
-  <link rel="canonical" href="https://euromania.cabrasky.net/">
-
-  <!-- ── Open Graph / Facebook ────────────────── -->
+  <link rel="canonical" href="https://100bocas.cabrasky.net/">
   <meta property="og:type" content="website">
-  <meta property="og:url" content="https://euromania.cabrasky.net/">
-  <meta property="og:title" content="Euromania — Pedidos Colaborativos en Tiempo Real">
+  <meta property="og:url" content="https://100bocas.cabrasky.net/">
+  <meta property="og:title" content="100Bocas — Pedidos Colaborativos en Tiempo Real">
   <meta property="og:description" content="Crea una sesión, comparte el código QR y haced el pedido juntos en tiempo real. Sin registros. Proyecto independiente.">
-  <meta property="og:image" content="https://euromania.cabrasky.net/favicon.svg">
+  <meta property="og:image" content="https://100bocas.cabrasky.net/favicon.svg">
   <meta property="og:locale" content="es_ES">
-  <meta property="og:site_name" content="Euromania — Pedidos Colaborativos">
-
-  <!-- ── Twitter Cards ────────────────────────── -->
+  <meta property="og:site_name" content="100Bocas — Pedidos Colaborativos">
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="Euromania — Pedidos Colaborativos">
+  <meta name="twitter:title" content="100Bocas — Pedidos Colaborativos">
   <meta name="twitter:description" content="Crea una sesión, comparte el código y haced el pedido juntos en tiempo real. Sin registros.">
-  <meta name="twitter:image" content="https://euromania.cabrasky.net/favicon.svg">
-
-  <!-- ── JSON-LD ─────────────────────────────── -->
+  <meta name="twitter:image" content="https://100bocas.cabrasky.net/favicon.svg">
   <script type="application/ld+json">{
     "@context": "https://schema.org",
     "@type": "WebApplication",
-    "name": "Euromania — Pedidos Colaborativos",
-    "url": "https://euromania.cabrasky.net/",
+    "name": "100Bocas — Pedidos Colaborativos",
+    "url": "https://100bocas.cabrasky.net/",
     "description": "Aplicación web para crear sesiones de pedidos en grupo en tiempo real.",
     "applicationCategory": "LifestyleApplication",
     "author": { "@type": "Person", "name": "Javier Mateos Mata", "url": "https://github.com/cabrasky" },
     "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" }
   }</script>
-
-  <!-- ── BreadcrumbList ───────────────────────── -->
-  <script type="application/ld+json">{
-    "@context": "https://schema.org",
-    "@type": "BreadcrumbList",
-    "itemListElement": [
-      { "@type": "ListItem", "position": 1, "name": "Inicio", "item": "https://euromania.cabrasky.net/" },
-      { "@type": "ListItem", "position": 2, "name": "App de pedidos", "item": "https://euromania.cabrasky.net/app" }
-    ]
-  }</script>
-
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-  <link rel="shortcut icon" href="/favicon.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="/favicon.svg">
-  <link rel="manifest" href="/site.webmanifest">
-
-  <!-- Font Awesome & Google Fonts -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
-      background: linear-gradient(135deg, #0a0f1a 0%, #0f1f1a 50%, #0a0f1a 100%);
-      color: #e2e8f0;
-      min-height: 100vh;
-      line-height: 1.6;
-    }
+    body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+           background: #0a0a0f; color: #e2e8f0; min-height: 100vh; }
     a { color: #6ee7b7; text-decoration: none; }
+    a:hover { text-decoration: underline; }
 
-    .landing-hero {
-      display: flex; align-items: center; justify-content: center;
-      min-height: 90vh; padding: 40px 20px;
-      text-align: center;
-    }
-    .landing-hero-inner { max-width: 640px; }
-    .landing-hero-icon {
-      width: 80px; height: 80px; margin: 0 auto 24px;
-      background: linear-gradient(135deg, #065f46, #0f4c3a);
-      border-radius: 24px; display: flex; align-items: center; justify-content: center;
-      font-size: 36px; color: #fbbf24;
-      box-shadow: 0 8px 32px rgba(6, 95, 70, 0.3);
-    }
-    .landing-hero-badge {
-      display: inline-flex; align-items: center; gap: 6px;
-      background: rgba(110, 231, 183, 0.1); border: 1px solid rgba(110, 231, 183, 0.2);
-      padding: 6px 14px; border-radius: 20px; font-size: 12px; color: #6ee7b7; margin-bottom: 20px;
-    }
-    .landing-hero h1 { font-size: 44px; font-weight: 800; color: #f1f5f9; line-height: 1.15; }
-    .landing-hero h1 i { font-style: normal; background: linear-gradient(135deg, #fbbf24, #f59e0b); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-    .landing-hero p { margin: 20px 0 32px; font-size: 17px; color: #94a3b8; }
-    .landing-cta {
-      display: inline-flex; align-items: center; gap: 8px;
-      background: linear-gradient(135deg, #059669, #047857);
-      color: #fff; padding: 14px 32px; border-radius: 12px; font-weight: 700; font-size: 16px;
-      transition: transform .2s, box-shadow .2s;
-    }
-    .landing-cta:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(5, 150, 105, 0.3); }
+    .landing-hero { padding: 80px 20px; text-align: center;
+                    background: linear-gradient(135deg, #1a0000 0%, #0a0a0f 50%, #1a0a00 100%); }
+    .landing-hero-inner { max-width: 700px; margin: 0 auto; }
+    .landing-hero-icon { font-size: 48px; color: #ef4444; margin-bottom: 16px; }
+    .landing-hero-badge { display: inline-block; background: rgba(239,68,68,.15); color: #fca5a5;
+                          padding: 6px 16px; border-radius: 20px; font-size: 13px; margin-bottom: 20px; }
+    .landing-hero h1 { font-size: 48px; font-weight: 800; line-height: 1.1; margin-bottom: 16px; }
+    .landing-hero h1 i { color: #ef4444; font-style: normal; }
+    .landing-hero p { font-size: 18px; color: #94a3b8; line-height: 1.6; margin-bottom: 32px; }
+    .landing-cta { display: inline-flex; align-items: center; gap: 10px;
+                   background: linear-gradient(135deg, #dc2626, #ea580c); color: #fff;
+                   padding: 14px 36px; border-radius: 12px; font-size: 17px; font-weight: 600;
+                   transition: transform .2s; text-decoration: none; }
+    .landing-cta:hover { transform: translateY(-2px); text-decoration: none; }
 
-    .landing-section { padding: 60px 20px; }
-    .landing-container { max-width: 960px; margin: 0 auto; }
-    .landing-section h2 { font-size: 24px; font-weight: 700; color: #f1f5f9; margin-bottom: 28px; text-align: center; }
+    .landing-section { padding: 80px 20px; }
+    .landing-section:nth-child(even) { background: #0f0f1a; }
+    .landing-container { max-width: 1100px; margin: 0 auto; }
+    .landing-section h2 { font-size: 28px; margin-bottom: 48px; text-align: center; color: #f1f5f9; }
+    .landing-section h2 i { color: #ef4444; margin-right: 8px; }
+    .landing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; }
+    .landing-card { background: #13131f; padding: 32px; border-radius: 16px;
+                    border: 1px solid #1e1e30; transition: border-color .2s; }
+    .landing-card:hover { border-color: #dc2626; }
+    .landing-card-icon { font-size: 28px; color: #ef4444; margin-bottom: 12px; }
+    .landing-card h3 { font-size: 18px; margin-bottom: 8px; }
+    .landing-card p { font-size: 14px; color: #94a3b8; line-height: 1.6; }
+    .landing-steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 24px; }
+    .landing-step { text-align: center; padding: 24px; }
+    .landing-step-num { width: 40px; height: 40px; border-radius: 50%; background: #dc2626;
+                        color: #fff; font-weight: 700; font-size: 18px; display: inline-flex;
+                        align-items: center; justify-content: center; margin-bottom: 12px; }
+    .landing-step h3 { font-size: 16px; margin-bottom: 8px; }
+    .landing-step p { font-size: 13px; color: #94a3b8; line-height: 1.5; }
+    .landing-screenshots { display: flex; gap: 20px; justify-content: center; flex-wrap: wrap; }
+    .landing-screenshot { cursor: pointer; border-radius: 12px; overflow: hidden;
+                          border: 1px solid #1e1e30; transition: transform .2s;
+                          width: 300px; background: #13131f; }
+    .landing-screenshot:hover { transform: scale(1.02); }
+    .landing-screenshot img { width: 100%; display: block; }
+    .landing-screenshot-label { padding: 10px 14px; font-size: 13px; color: #94a3b8; }
 
-    .landing-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
-    .landing-card {
-      background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06);
-      border-radius: 16px; padding: 24px; text-align: center;
-      transition: background .2s, transform .2s;
-    }
-    .landing-card:hover { background: rgba(255,255,255,0.07); transform: translateY(-2px); }
-    .landing-card-icon { font-size: 28px; color: #6ee7b7; margin-bottom: 12px; }
-    .landing-card h3 { font-size: 15px; font-weight: 700; color: #f1f5f9; margin-bottom: 6px; }
-    .landing-card p { font-size: 13px; color: #94a3b8; }
+    .screenshot-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.9);
+                                z-index: 9999; display: flex; align-items: center; justify-content: center; }
+    .screenshot-modal-content { max-width: 90vw; max-height: 85vh; position: relative; }
+    .screenshot-modal-content img { max-width: 100%; max-height: 85vh; border-radius: 8px; }
+    .screenshot-modal-close { position: fixed; top: 20px; right: 20px; background: none;
+                              border: none; color: #fff; font-size: 28px; cursor: pointer;
+                              width: 44px; height: 44px; display: flex; align-items: center;
+                              justify-content: center; border-radius: 50%; }
+    .screenshot-modal-close:hover { background: rgba(255,255,255,.1); }
+    .screenshot-modal-nav { position: fixed; top: 50%; transform: translateY(-50%); background: none;
+                            border: none; color: #fff; font-size: 36px; cursor: pointer;
+                            padding: 20px; opacity: .6; }
+    .screenshot-modal-nav:hover { opacity: 1; }
+    .screenshot-modal-prev { left: 20px; }
+    .screenshot-modal-next { right: 20px; }
+    .screenshot-modal-label { text-align: center; color: #94a3b8; margin-top: 12px; font-size: 14px; }
+    .screenshot-modal-counter { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+                                color: #64748b; font-size: 13px; }
 
-    .landing-steps { display: flex; flex-wrap: wrap; justify-content: center; gap: 24px; }
-    .landing-step { text-align: center; flex: 1; min-width: 160px; max-width: 220px; }
-    .landing-step-num {
-      width: 40px; height: 40px; margin: 0 auto 12px;
-      background: linear-gradient(135deg, #065f46, #0f4c3a);
-      border-radius: 12px; display: flex; align-items: center; justify-content: center;
-      font-weight: 800; font-size: 18px; color: #fbbf24;
-    }
-    .landing-step h3 { font-size: 14px; font-weight: 700; color: #f1f5f9; margin-bottom: 4px; }
-    .landing-step p { font-size: 12px; color: #94a3b8; }
+    .landing-legal-box { max-width: 700px; margin: 0 auto; background: #13131f;
+                         padding: 32px; border-radius: 16px; border: 1px solid #1e1e30;
+                         text-align: center; }
+    .landing-legal-box i { font-size: 32px; color: #f59e0b; margin-bottom: 12px; }
+    .landing-legal-box h3 { margin-bottom: 16px; }
+    .landing-legal-box p { font-size: 14px; color: #94a3b8; line-height: 1.7; }
 
-    .landing-legal-box {
-      max-width: 560px; margin: 0 auto;
-      background: rgba(251, 191, 36, 0.04); border: 1px solid rgba(251, 191, 36, 0.1);
-      border-radius: 16px; padding: 24px; text-align: center; font-size: 13px; color: #94a3b8;
+    .landing-footer { background: #08080d; padding: 48px 20px; text-align: center; }
+    .landing-footer-inner { max-width: 600px; margin: 0 auto; }
+    .landing-footer-icon { font-size: 28px; color: #ef4444; margin-bottom: 8px; }
+    .landing-footer h3 { font-size: 18px; margin-bottom: 8px; }
+    .landing-footer p { font-size: 13px; color: #64748b; margin-bottom: 4px; }
+    .landing-oss-box { background: #13131f; border: 1px solid #1e1e30; border-radius: 12px;
+                       padding: 20px; margin: 24px 0; }
+    .landing-oss-box i { font-size: 24px; color: #64748b; margin-bottom: 8px; }
+    .landing-oss-box p { margin-bottom: 4px; }
+    .landing-footer-divider { height: 1px; background: #1e1e30; margin: 20px 0; }
+    @media (max-width: 640px) {
+      .landing-hero h1 { font-size: 32px; }
+      .landing-hero p { font-size: 15px; }
+      .landing-grid { grid-template-columns: 1fr; }
+      .landing-steps { grid-template-columns: 1fr 1fr; }
     }
-    .landing-legal-box i { font-size: 24px; color: #fbbf24; margin-bottom: 8px; display: block; }
-    .landing-legal-box h3 { font-size: 15px; font-weight: 700; color: #f1f5f9; margin-bottom: 8px; }
-
-    .landing-footer {
-      text-align: center; padding: 40px 20px;
-      border-top: 1px solid rgba(255,255,255,0.06); margin-top: 20px;
-    }
-    .landing-footer-icon {
-      width: 48px; height: 48px; margin: 0 auto 12px;
-      background: linear-gradient(135deg, #065f46, #0f4c3a);
-      border-radius: 14px; display: flex; align-items: center; justify-content: center;
-      font-size: 22px; color: #fbbf24;
-    }
-    .landing-footer h3 { font-size: 16px; font-weight: 700; color: #f1f5f9; margin-bottom: 8px; }
-    .landing-footer p { font-size: 13px; color: #64748b; }
-    .landing-footer-divider { width: 40px; height: 2px; margin: 12px auto; background: rgba(255,255,255,0.08); border-radius: 2px; }
-.landing-oss-box {
-  max-width: 400px; margin: 16px auto 12px;
-  background: rgba(110, 231, 183, 0.06); border: 1px solid rgba(110, 231, 183, 0.12);
-  border-radius: 12px; padding: 16px 20px; font-size: 13px;
-}
-.landing-oss-box i { font-size: 20px; color: #6ee7b7; margin-bottom: 6px; display: block; }
-.landing-oss-box p { margin: 4px 0; color: #94a3b8; }
-.landing-oss-box a { color: #6ee7b7; font-weight: 600; }
-.landing-oss-box a:hover { text-decoration: underline; }
-
-.landing-screenshots {
-  display: flex; flex-wrap: wrap; gap: 12px; justify-content: center;
-  margin: 24px 0;
-}
-.landing-screenshot {
-  flex: 1; min-width: 240px; max-width: 460px;
-  border-radius: 14px; overflow: hidden;
-  border: 1px solid rgba(255,255,255,0.08);
-  background: rgba(255,255,255,0.03);
-  transition: transform .2s, box-shadow .2s;
-}
-.landing-screenshot:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 12px 40px rgba(0,0,0,0.3);
-}
-.landing-screenshot img {
-  width: 100%; display: block;
-}
-.landing-screenshot-label {
-  padding: 10px 14px; font-size: 12px; color: #94a3b8; font-weight: 600;
-  background: rgba(0,0,0,0.2);
-}
   </style>
 </head>
 <body>
@@ -185,16 +132,16 @@
     <div class="landing-hero-inner">
       <div class="landing-hero-icon"><i class="fas fa-utensils"></i></div>
       <div class="landing-hero-badge"><i class="fas fa-code-branch"></i> Proyecto independiente</div>
-      <h1><i>Euromania</i><br>Pedidos Colaborativos</h1>
+      <h1><i>100Bocas</i><br>Pedidos Colaborativos</h1>
       <p>Crea una sesión, comparte el código con tus amigos y haced el pedido juntos en tiempo real. Sin registros, sin complicaciones.</p>
-      <a href="https://euromania.cabrasky.net/app" class="landing-cta">
+      <a href="https://100bocas.cabrasky.net/app" class="landing-cta">
         <i class="fas fa-right-to-bracket"></i> Entrar a la App
       </a>
     </div>
   </section>
 
   <!-- Features -->
-  <section class="landing-section">
+  <section class="landing-section landing-features">
     <div class="landing-container">
       <h2><i class="fas fa-star"></i> ¿Qué puedes hacer?</h2>
       <div class="landing-grid">
@@ -232,58 +179,33 @@
     </div>
   </section>
 
-  <!-- Cómo funciona -->
-  <section class="landing-section" style="padding-top: 0;">
+  <!-- How it works -->
+  <section class="landing-section landing-how">
     <div class="landing-container">
       <h2><i class="fas fa-circle-play"></i> Cómo funciona</h2>
       <div class="landing-steps">
-        <div class="landing-step">
-          <div class="landing-step-num">1</div>
-          <h3>Crea una sesión</h3>
-          <p>Escribe tu nombre y pulsa "Crear sesión nueva". Se generará un código único de 6 caracteres.</p>
-        </div>
-        <div class="landing-step">
-          <div class="landing-step-num">2</div>
-          <h3>Comparte el código</h3>
-          <p>Envía el código o el QR a tus amigos. Pueden unirse desde cualquier dispositivo.</p>
-        </div>
-        <div class="landing-step">
-          <div class="landing-step-num">3</div>
-          <h3>Cada uno pide</h3>
-          <p>Cada persona añade sus montaditos favoritos del menú. Todo se sincroniza al instante.</p>
-        </div>
-        <div class="landing-step">
-          <div class="landing-step-num">4</div>
-          <h3>Pedido listo</h3>
-          <p>Usa el resumen consolidado para ver todo lo que hay que pedir, agrupado y con totales.</p>
-        </div>
+        <div class="landing-step"><div class="landing-step-num">1</div><h3>Crea una sesión</h3><p>Escribe tu nombre y pulsa "Crear sesión nueva". Se generará un código único de 6 caracteres.</p></div>
+        <div class="landing-step"><div class="landing-step-num">2</div><h3>Comparte el código</h3><p>Envía el código o el QR a tus amigos. Pueden unirse desde cualquier dispositivo.</p></div>
+        <div class="landing-step"><div class="landing-step-num">3</div><h3>Cada uno pide</h3><p>Cada persona añade sus montaditos favoritos del menú. Todo se sincroniza al instante.</p></div>
+        <div class="landing-step"><div class="landing-step-num">4</div><h3>Pedido listo</h3><p>Usa el resumen consolidado para ver todo lo que hay que pedir, agrupado y con totales.</p></div>
       </div>
     </div>
   </section>
 
   <!-- Screenshots -->
-  <section class="landing-section" style="padding-top: 0;">
+  <section class="landing-section landing-screenshots-section">
     <div class="landing-container">
       <h2><i class="fas fa-camera"></i> Así se ve</h2>
       <div class="landing-screenshots">
-        <div class="landing-screenshot">
-          <img src="/screenshots/desktop.png" alt="Vista de escritorio" loading="lazy">
-          <div class="landing-screenshot-label">🖥️ Vista de escritorio</div>
-        </div>
-        <div class="landing-screenshot">
-          <img src="/screenshots/liquidacion.png" alt="Liquidación de cuentas" loading="lazy">
-          <div class="landing-screenshot-label">💰 Liquidación de cuentas</div>
-        </div>
-        <div class="landing-screenshot">
-          <img src="/screenshots/history.png" alt="Historial de comandas" loading="lazy">
-          <div class="landing-screenshot-label">📋 Historial de comandas</div>
-        </div>
+        <div class="landing-screenshot" onclick="openModal(0)"><img src="/screenshots/desktop.png" alt="Vista de escritorio"><div class="landing-screenshot-label">🖥️ Vista de escritorio</div></div>
+        <div class="landing-screenshot" onclick="openModal(1)"><img src="/screenshots/liquidacion.png" alt="Liquidación de cuentas"><div class="landing-screenshot-label">💰 Liquidación de cuentas</div></div>
+        <div class="landing-screenshot" onclick="openModal(2)"><img src="/screenshots/history.png" alt="Historial de comandas"><div class="landing-screenshot-label">📋 Historial de comandas</div></div>
       </div>
     </div>
   </section>
 
   <!-- Legal -->
-  <section class="landing-section" style="padding-top: 0;">
+  <section class="landing-section landing-legal">
     <div class="landing-container">
       <div class="landing-legal-box">
         <i class="fas fa-scale-balanced"></i>
@@ -295,27 +217,48 @@
 
   <!-- Footer -->
   <footer class="landing-footer">
-    <div class="landing-footer-icon"><i class="fas fa-utensils"></i></div>
-    <h3>Euromania — Pedidos Colaborativos</h3>
-    <p><i class="fas fa-code"></i> Desarrollado por <a href="https://github.com/cabrasky" target="_blank" rel="noopener">cabrasky</a> — Javier Mateos Mata</p>
-    <p><i class="fas fa-tools"></i> Proyecto personal de código abierto</p>
-
-    <div class="landing-oss-box">
-      <i class="fab fa-github"></i>
-      <p>Este proyecto es <strong>código abierto</strong>.</p>
-      <p>
-        <a href="https://github.com/cabrasky/euromania-pedidos" target="_blank" rel="noopener">Ver en GitHub</a>
-        &nbsp;·&nbsp;
-        <a href="https://github.com/cabrasky/euromania-pedidos/issues/new" target="_blank" rel="noopener">Abrir issue</a>
-        &nbsp;·&nbsp;
-        <a href="https://github.com/cabrasky/euromania-pedidos/issues" target="_blank" rel="noopener">Sugerir mejora</a>
-      </p>
+    <div class="landing-footer-inner">
+      <div class="landing-footer-icon"><i class="fas fa-utensils"></i></div>
+      <h3>100Bocas — Pedidos Colaborativos</h3>
+      <p><i class="fas fa-code"></i> Desarrollado por <a href="https://github.com/cabrasky" target="_blank" rel="noopener">cabrasky</a> — Javier Mateos Mata</p>
+      <p><i class="fas fa-tools"></i> Proyecto personal de código abierto</p>
+      <div class="landing-oss-box">
+        <i class="fab fa-github"></i>
+        <p>Este proyecto es <strong>código abierto</strong>.</p>
+        <p><a href="https://github.com/cabrasky/100bocas-pedidos" target="_blank" rel="noopener">Ver en GitHub</a> · <a href="https://github.com/cabrasky/100bocas-pedidos/issues/new" target="_blank" rel="noopener">Abrir issue</a> · <a href="https://github.com/cabrasky/100bocas-pedidos/issues" target="_blank" rel="noopener">Sugerir mejora</a></p>
+      </div>
+      <div class="landing-footer-divider"></div>
+      <p style="font-size:12px;color:#64748b;">Los datos se almacenan únicamente durante 5 días. No compartimos información con terceros.</p>
+      <p style="font-size:12px;color:#64748b;margin-top:8px;"><i class="fas fa-shield"></i> Este proyecto no está afiliado a 100 Montaditos® ni Euromania®</p>
+      <p style="margin-top:16px;"><a href="https://100bocas.cabrasky.net/app" style="font-size:13px;color:#6ee7b7;"><i class="fas fa-arrow-right"></i> Ir a la aplicación</a></p>
     </div>
-
-    <div class="landing-footer-divider"></div>
-    <p style="font-size:12px;color:#64748b;">Los datos se almacenan únicamente durante 5 días. No compartimos información con terceros.</p>
-    <p style="font-size:12px;color:#64748b;margin-top:8px;"><i class="fas fa-shield"></i> Este proyecto no está afiliado a 100 Montaditos® ni Euromania®</p>
-    <p style="margin-top:16px;"><a href="https://euromania.cabrasky.net/app" style="font-size:13px;color:#6ee7b7;"><i class="fas fa-arrow-right"></i> Ir a la aplicación</a></p>
   </footer>
+
+  <script>
+    const SCREENSHOTS = ['/screenshots/desktop.png','/screenshots/liquidacion.png','/screenshots/history.png'];
+    const LABELS = ['🖥️ Vista de escritorio','💰 Liquidación de cuentas','📋 Historial de comandas'];
+    let selected = null;
+    function openModal(i) { selected = i; renderModal(); }
+    function closeModal() { selected = null; document.querySelector('.screenshot-modal-overlay')?.remove(); document.body.style.overflow = ''; }
+    function prevImg() { if (selected !== null) selected = (selected - 1 + SCREENSHOTS.length) % SCREENSHOTS.length; renderModal(); }
+    function nextImg() { if (selected !== null) selected = (selected + 1) % SCREENSHOTS.length; renderModal(); }
+    function renderModal() {
+      document.querySelector('.screenshot-modal-overlay')?.remove();
+      if (selected === null) return;
+      document.body.style.overflow = 'hidden';
+      const d = document.createElement('div'); d.className = 'screenshot-modal-overlay';
+      d.onclick = closeModal;
+      d.innerHTML = `<button class="screenshot-modal-close" onclick="closeModal()"><i class="fas fa-xmark"></i></button>
+        <button class="screenshot-modal-nav screenshot-modal-prev" onclick="event.stopPropagation();prevImg()"><i class="fas fa-chevron-left"></i></button>
+        <button class="screenshot-modal-nav screenshot-modal-next" onclick="event.stopPropagation();nextImg()"><i class="fas fa-chevron-right"></i></button>
+        <div class="screenshot-modal-content" onclick="event.stopPropagation()">
+          <img src="${SCREENSHOTS[selected]}" alt="${LABELS[selected]}">
+          <div class="screenshot-modal-label">${LABELS[selected]}</div>
+        </div>
+        <div class="screenshot-modal-counter">${selected+1} / ${SCREENSHOTS.length}</div>`;
+      document.body.appendChild(d);
+    }
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); if (e.key === 'ArrowLeft') prevImg(); if (e.key === 'ArrowRight') nextImg(); });
+  </script>
 </body>
 </html>

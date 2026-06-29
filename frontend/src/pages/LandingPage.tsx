@@ -52,28 +52,28 @@ function LandingPage() {
   return (
     <div>
       <Helmet>
-        <title>Euromania — Pedidos Colaborativos en Tiempo Real</title>
+        <title>100Bocas — Pedidos Colaborativos en Tiempo Real</title>
         <meta name="description" content="Crea una sesión de pedidos en grupo, comparte el código con tus amigos y haced el pedido juntos en tiempo real. Sin registros, sin complicaciones. Proyecto independiente by cabrasky." />
-        <meta name="keywords" content="euromania, 100 montaditos, 100mon, montaditos, pedidos colaborativos, pedidos en grupo, comida, tiempo real, menú, pedir montaditos online, menú 100 montaditos, cena grupo, comida rápida, montaditos online, pedido restaurante, montaditos a domicilio" />
+        <meta name="keywords" content="100bocas, 100 montaditos, 100mon, montaditos, pedidos colaborativos, pedidos en grupo, comida, tiempo real, menú, pedir montaditos online, menú 100 montaditos, cena grupo, comida rápida, montaditos online, pedido restaurante, montaditos a domicilio" />
         <meta name="author" content="cabrasky — Javier Mateos Mata" />
         <meta name="robots" content="index, follow" />
-        <link rel="canonical" href="https://euromania.cabrasky.net/" />
+        <link rel="canonical" href="https://100bocas.cabrasky.net/" />
         <meta property="og:type" content="website" />
-        <meta property="og:url" content="https://euromania.cabrasky.net/" />
-        <meta property="og:title" content="Euromania — Pedidos Colaborativos en Tiempo Real" />
+        <meta property="og:url" content="https://100bocas.cabrasky.net/" />
+        <meta property="og:title" content="100Bocas — Pedidos Colaborativos en Tiempo Real" />
         <meta property="og:description" content="Crea una sesión, comparte el código QR y haced el pedido juntos en tiempo real. Sin registros. Proyecto independiente." />
-        <meta property="og:image" content="https://euromania.cabrasky.net/favicon.svg" />
+        <meta property="og:image" content="https://100bocas.cabrasky.net/favicon.svg" />
         <meta property="og:locale" content="es_ES" />
-        <meta property="og:site_name" content="Euromania — Pedidos Colaborativos" />
+        <meta property="og:site_name" content="100Bocas — Pedidos Colaborativos" />
         <meta name="twitter:card" content="summary" />
-        <meta name="twitter:title" content="Euromania — Pedidos Colaborativos" />
+        <meta name="twitter:title" content="100Bocas — Pedidos Colaborativos" />
         <meta name="twitter:description" content="Crea una sesión, comparte el código y haced el pedido juntos en tiempo real. Sin registros." />
-        <meta name="twitter:image" content="https://euromania.cabrasky.net/favicon.svg" />
+        <meta name="twitter:image" content="https://100bocas.cabrasky.net/favicon.svg" />
         <script type="application/ld+json">{JSON.stringify({
           "@context": "https://schema.org",
           "@type": "WebApplication",
-          "name": "Euromania — Pedidos Colaborativos",
-          "url": "https://euromania.cabrasky.net/",
+          "name": "100Bocas — Pedidos Colaborativos",
+          "url": "https://100bocas.cabrasky.net/",
           "description": "Aplicación web para crear sesiones de pedidos en grupo en tiempo real.",
           "applicationCategory": "LifestyleApplication",
           "author": { "@type": "Person", "name": "Javier Mateos Mata", "url": "https://github.com/cabrasky" },
@@ -90,7 +90,7 @@ function LandingPage() {
           <div className="landing-hero-badge">
             <i className="fas fa-code-branch" /> Proyecto independiente
           </div>
-          <h1><i>Euromania</i><br />Pedidos Colaborativos</h1>
+          <h1><i>100Bocas</i><br />Pedidos Colaborativos</h1>
           <p>Crea una sesión, comparte el código con tus amigos y haced el pedido juntos en tiempo real. Sin registros, sin complicaciones.</p>
           <Link to="/app" className="landing-cta">
             <i className="fas fa-right-to-bracket" /> Entrar a la App
@@ -189,7 +189,7 @@ function LandingPage() {
       <footer className="landing-footer">
         <div className="landing-footer-inner">
           <div className="landing-footer-icon"><i className="fas fa-utensils" /></div>
-          <h3>Euromania — Pedidos Colaborativos</h3>
+          <h3>100Bocas — Pedidos Colaborativos</h3>
           <p><i className="fas fa-code" /> Desarrollado por <a href="https://github.com/cabrasky" target="_blank" rel="noopener">cabrasky</a> — Javier Mateos Mata</p>
           <p><i className="fas fa-tools" /> Proyecto personal de código abierto</p>
 
@@ -197,11 +197,11 @@ function LandingPage() {
             <i className="fab fa-github" />
             <p>Este proyecto es <strong>código abierto</strong>.</p>
             <p>
-              <a href="https://github.com/cabrasky/euromania-pedidos" target="_blank" rel="noopener">Ver en GitHub</a>
+              <a href="https://github.com/cabrasky/100bocas-pedidos" target="_blank" rel="noopener">Ver en GitHub</a>
               {' · '}
-              <a href="https://github.com/cabrasky/euromania-pedidos/issues/new" target="_blank" rel="noopener">Abrir issue</a>
+              <a href="https://github.com/cabrasky/100bocas-pedidos/issues/new" target="_blank" rel="noopener">Abrir issue</a>
               {' · '}
-              <a href="https://github.com/cabrasky/euromania-pedidos/issues" target="_blank" rel="noopener">Sugerir mejora</a>
+              <a href="https://github.com/cabrasky/100bocas-pedidos/issues" target="_blank" rel="noopener">Sugerir mejora</a>
             </p>
           </div>
 

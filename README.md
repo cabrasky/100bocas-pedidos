@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="frontend/public/favicon.svg" width="80" height="80" alt="Euromania logo">
+  <img src="frontend/public/favicon.svg" width="80" height="80" alt="100Bocas logo">
 </p>
 
-<h1 align="center">🍔 Euromania — Pedidos Colaborativos</h1>
+<h1 align="center">🍔 100Bocas — Pedidos Colaborativos</h1>
 
 <p align="center">
   <strong>Aplicación web para hacer pedidos en grupo en tiempo real.</strong><br>
@@ -11,17 +11,17 @@
 </p>
 
 <p align="center">
-  <a href="https://euromania.cabrasky.net/">🌐 Web</a>
+  <a href="https://100bocas.cabrasky.net/">🌐 Web</a>
   ·
-  <a href="https://github.com/cabrasky/euromania-pedidos/issues">🐛 Reportar un bug</a>
+  <a href="https://github.com/cabrasky/100bocas-pedidos/issues">🐛 Reportar un bug</a>
   ·
-  <a href="https://github.com/cabrasky/euromania-pedidos/issues/new?template=feature_request.md">✨ Sugerir mejora</a>
+  <a href="https://github.com/cabrasky/100bocas-pedidos/issues/new?template=feature_request.md">✨ Sugerir mejora</a>
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/github/license/cabrasky/euromania-pedidos" alt="License">
-  <img src="https://img.shields.io/github/last-commit/cabrasky/euromania-pedidos" alt="Last commit">
-  <img src="https://img.shields.io/github/issues/cabrasky/euromania-pedidos" alt="Issues">
+  <img src="https://img.shields.io/github/license/cabrasky/100bocas-pedidos" alt="License">
+  <img src="https://img.shields.io/github/last-commit/cabrasky/100bocas-pedidos" alt="Last commit">
+  <img src="https://img.shields.io/github/issues/cabrasky/100bocas-pedidos" alt="Issues">
   <img src="https://img.shields.io/badge/React-18-blue?logo=react" alt="React">
   <img src="https://img.shields.io/badge/FastAPI-Python-success?logo=fastapi" alt="FastAPI">
   <img src="https://img.shields.io/badge/PostgreSQL-16-336791?logo=postgresql" alt="PostgreSQL">
@@ -71,7 +71,7 @@
 ## 📦 Estructura del proyecto
 
 ```
-euromania-pedidos/
+100bocas-pedidos/
 ├── frontend/
 │   ├── src/
 │   │   ├── components/
@@ -134,20 +134,20 @@ node ../ssr-server.mjs
 
 | Variable | Descripción | Defecto |
 |---|---|---|
-| `EUROMANIA_DB` | DSN de PostgreSQL | `postgresql://euromania@localhost:5432/euromania` |
-| `EUROMANIA_HOST` | Host del servidor | `0.0.0.0` |
-| `EUROMANIA_PORT` | Puerto del servidor | `8112` |
-| `EUROMANIA_MAX_RPM` | Límite de req/min por IP | `120` |
-| `EUROMANIA_SESSION_TTL` | Tiempo de vida sesión inactiva (s) | `86400` (24h) |
-| `EUROMANIA_SESSION_MAX_AGE` | Tiempo máximo de sesión (s) | `432000` (5 días) |
-| `EUROMANIA_ADMIN_PASSWORD` | Contraseña panel admin | (generada) |
-| `EUROMANIA_TRUSTED_PROXIES` | CIDRs de proxies confiables | `192.168.0.0/16,...` |
+| `BOCAS_DB` | DSN de PostgreSQL | `postgresql://euromania@localhost:5432/euromania` |
+| `BOCAS_HOST` | Host del servidor | `0.0.0.0` |
+| `BOCAS_PORT` | Puerto del servidor | `8112` |
+| `BOCAS_MAX_RPM` | Límite de req/min por IP | `120` |
+| `BOCAS_SESSION_TTL` | Tiempo de vida sesión inactiva (s) | `86400` (24h) |
+| `BOCAS_SESSION_MAX_AGE` | Tiempo máximo de sesión (s) | `432000` (5 días) |
+| `BOCAS_ADMIN_PASSWORD` | Contraseña panel admin | (generada) |
+| `BOCAS_TRUSTED_PROXIES` | CIDRs de proxies confiables | `192.168.0.0/16,...` |
 
 ## 🤝 Contribuciones
 
 Las contribuciones son bienvenidas. Este es un proyecto personal, pero si tienes ideas, bugs o mejoras:
 
-1. Abre un [issue](https://github.com/cabrasky/euromania-pedidos/issues/new)
+1. Abre un [issue](https://github.com/cabrasky/100bocas-pedidos/issues/new)
 2. Haz un fork y envía un PR
 3. O simplemente [escribe un mensaje](https://github.com/cabrasky)
 

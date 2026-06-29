@@ -12,7 +12,7 @@ interface Props {
 function Header({ myName, sessionCode, onCopyCode, onShowQR, onLeave, onShowPrivacy, sessionUrl, menuName }: Props) {
   const handleShareWhatsApp = () => {
     const msg = encodeURIComponent(
-      `🍔 *Euromania — Pedido Colaborativo*\n\nCódigo: *${sessionCode}*\n\nÚnete aquí: ${sessionUrl}\n\nAñade tus montaditos y coordinamos el pedido 🎉`
+      `🍔 *100Bocas — Pedido Colaborativo*\\n\\nCódigo: *${sessionCode}*\\n\\nÚnete aquí: ${sessionUrl}\\n\\nAñade tus montaditos y coordinamos el pedido 🎉`
     );
     window.open(`https://wa.me/?text=${msg}`, '_blank');
   };
@@ -20,7 +20,7 @@ function Header({ myName, sessionCode, onCopyCode, onShowQR, onLeave, onShowPriv
   return (
     <header>
       <div className="header-left">
-        <h1><i className="fas fa-utensils"></i>Euromania</h1>
+        <h1><i className="fas fa-utensils"></i>100Bocas</h1>
         <div className="subtitle">Conectado como {myName}{menuName ? <span className="menu-badge"> · <i className="fas fa-tag"></i> {menuName}</span> : ''}</div>
       </div>
       <div className="header-right">
@@ -33,7 +33,7 @@ function Header({ myName, sessionCode, onCopyCode, onShowQR, onLeave, onShowPriv
         <button className="header-btn whatsapp" onClick={handleShareWhatsApp} title="Compartir por WhatsApp">
           <i className="fab fa-whatsapp"></i>
         </button>
-        <a href="https://github.com/cabrasky/euromania-pedidos" target="_blank" rel="noopener" className="header-btn github" title="Ver en GitHub (código abierto)">
+        <a href="https://github.com/cabrasky/100bocas-pedidos" target="_blank" rel="noopener" className="header-btn github" title="Ver en GitHub (código abierto)">
           <i className="fab fa-github"></i>
         </a>
         <button className="header-btn" onClick={onShowPrivacy} title="Aviso legal y privacidad">

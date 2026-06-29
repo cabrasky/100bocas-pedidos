@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 
 const CAT_LABELS: Record<string, string> = {
-  euromania: 'Euromania', clasicos: 'Clásicos', imprescindibles: 'Imprescindibles',
+  bocas: '100Bocas', clasicos: 'Clásicos', imprescindibles: 'Imprescindibles',
   especiales: 'Especiales', montycookie: 'MontyCookie', montydinas: 'Montydinas',
   montyperros: 'Montyperros', montyburgers: 'Montyburgers', montypizzas: 'Montypizzas',
   montygourmet: 'MontyGourmet', aperitivos: 'Aperitivos', postres: 'Postres',

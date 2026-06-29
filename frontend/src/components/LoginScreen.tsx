@@ -51,7 +51,7 @@ function LoginScreen({ onLogin }: Props) {
     <>
       <div className="login-overlay">
         <div className="login-card">
-          <h2><i className="fas fa-utensils"></i> Euromania</h2>
+          <h2><i className="fas fa-utensils"></i> 100Bocas</h2>
           <div className="login-sub">Pedidos colaborativos en tiempo real</div>
 
           {error && <div className="login-error">⚠️ {error}</div>}

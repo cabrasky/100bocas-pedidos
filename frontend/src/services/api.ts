@@ -61,7 +61,7 @@ export function clearPerson(code: string, personName: string): Promise<SessionDa
   return api('DELETE', `/api/session/${code}/person/${encodeURIComponent(personName)}/clear`);
 }
 
-const COOKIE_NAME = 'euromania';
+const COOKIE_NAME = '100bocas';
 export function setSessionCookie(code: string, name: string) {
   const val = encodeURIComponent(JSON.stringify({ code, name }));
   document.cookie = `${COOKIE_NAME}=${val};path=/;max-age=${30 * 24 * 3600};SameSite=Lax`;

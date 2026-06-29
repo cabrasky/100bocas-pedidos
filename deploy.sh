@@ -1,10 +1,10 @@
 #!/bin/bash
-# deploy.sh — Despliegue del Menú Euromania (React + FastAPI)
+# deploy.sh — Despliegue de 100Bocas (React + FastAPI)
 # Usage: ./deploy.sh [build|start|stop|restart|status|url]
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
-PORT="${EUROMANIA_PORT:-8112}"
-SERVICE="menu-euromania"
+PORT="${BOCAS_PORT:-8112}"
+SERVICE="100bocas"
 
 case "${1:-start}" in
   build)
@@ -33,8 +33,7 @@ case "${1:-start}" in
     sudo systemctl status "$SERVICE" --no-pager 2>&1 | grep -E "Active:|Main PID|●"
     ;;
   url)
-    echo "   https://euromania.cabrasky.net"
-    echo "   https://euromania.local"
+    echo "   https://100bocas.cabrasky.net"
     echo "   http://localhost:$PORT"
     ;;
   *)
