@@ -1,0 +1,25 @@
+# ── 100Bocas Backend — Python FastAPI ──────────────────
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install system deps for asyncpg/psycopg2
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc libpq-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+# Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# App code
+COPY server.py seed_menus.py robots.txt sitemap.xml ./
+
+# Expose API port
+EXPOSE 8112
+
+# Health check
+HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8112/api/sessions')" || exit 1
+
+CMD ["python", "server.py"]

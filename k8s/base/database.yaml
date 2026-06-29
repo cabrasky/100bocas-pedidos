@@ -1,0 +1,98 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bocas-db
+  namespace: bocas
+  labels:
+    app: bocas-db
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bocas-db
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: bocas-db
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:16-alpine
+        ports:
+        - containerPort: 5432
+        env:
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: bocas-secrets
+              key: POSTGRES_USER
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: bocas-secrets
+              key: POSTGRES_PASSWORD
+        - name: POSTGRES_DB
+          valueFrom:
+            secretKeyRef:
+              name: bocas-secrets
+              key: POSTGRES_DB
+        - name: PGSSLMODE
+          value: "disable"
+        volumeMounts:
+        - name: pgdata
+          mountPath: /var/lib/postgresql/data
+        - name: init-sql
+          mountPath: /docker-entrypoint-initdb.d/
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "256Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+        readinessProbe:
+          exec:
+            command: ["pg_isready", "-U", "bocas"]
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        livenessProbe:
+          exec:
+            command: ["pg_isready", "-U", "bocas"]
+          initialDelaySeconds: 30
+          periodSeconds: 20
+      volumes:
+      - name: pgdata
+        persistentVolumeClaim:
+          claimName: bocas-db-pvc
+      - name: init-sql
+        configMap:
+          name: bocas-init-sql
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: bocas-db-pvc
+  namespace: bocas
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: local-path
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bocas-db
+  namespace: bocas
+  labels:
+    app: bocas-db
+spec:
+  selector:
+    app: bocas-db
+  ports:
+  - port: 5432
+    targetPort: 5432

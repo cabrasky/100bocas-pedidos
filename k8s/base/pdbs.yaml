@@ -1,0 +1,21 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: bocas-backend-pdb
+  namespace: bocas
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: bocas-backend
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: bocas-frontend-pdb
+  namespace: bocas
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: bocas-frontend
