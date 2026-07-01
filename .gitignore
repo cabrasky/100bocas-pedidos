@@ -26,3 +26,4 @@ banned_ips.json
 
 # Project specific
 *.db
+dist/

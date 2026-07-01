@@ -1,5 +1,5 @@
 """Seed the database with initial menu configurations.
-Creates: Euromanía (1€), Precio Normal, and A Domicilio menus."""
+Creates: 100Bocas (1€), Precio Normal, and A Domicilio menus."""
 import asyncio
 import asyncpg
 import os
@@ -182,7 +182,7 @@ PRICES = {
 }
 
 MENU_CONFIGS = [
-    {"name": "Euromanía (1€)", "slug": "euromania",
+    {"name": "100Bocas (1€)", "slug": "100bocas",
      "desc": "Miércoles y domingos — Casi toda la carta a 1€", "active": True},
     {"name": "Precio Normal", "slug": "normal",
      "desc": "Resto de días — Precios regulares", "active": False},

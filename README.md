@@ -158,6 +158,6 @@ MIT — Ver el archivo [LICENSE](LICENSE) para más detalles.
 ---
 
 <p align="center">
-  <sub>Proyecto independiente. No afiliado a 100 Montaditos® ni Euromania®.</sub><br>
+  <sub>Proyecto independiente. No afiliado a 100 Montaditos® ni 100Bocas®.</sub><br>
   <sub>Desarrollado por <a href="https://github.com/cabrasky">cabrasky</a> — Javier Mateos Mata</sub>
 </p>

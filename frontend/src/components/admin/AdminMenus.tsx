@@ -196,7 +196,7 @@ function AdminMenus({ authHeaders, base }: Props) {
           <div className="admin-section">
             <h3><i className="fas fa-plus-circle"></i> Nueva carta</h3>
             <div className="menu-create-form">
-              <input type="text" className="menu-input" placeholder="Nombre (ej: Euromanía 1€)" value={newName}
+              <input type="text" className="menu-input" placeholder="Nombre (ej: 100Bocas 1€)" value={newName}
                 onChange={e => setNewName(e.target.value)} />
               <input type="text" className="menu-input" placeholder="Slug (ej: bocas)" value={newSlug}
                 onChange={e => setNewSlug(e.target.value.toLowerCase().replace(/\s+/g, '-'))} />

@@ -176,7 +176,7 @@ function LandingPage() {
             <p>
               Esta aplicación es un <strong>proyecto independiente y no oficial</strong>.
               No está vinculada, patrocinada ni aprobada por la marca{' '}
-              <strong>100 Montaditos</strong> ni por <strong>Euromania</strong>.
+              <strong>100 Montaditos</strong> ni por <strong>100Bocas</strong>.
               Todos los nombres de productos y marcas registradas pertenecen a sus respectivos propietarios.
               Esta herramienta se ofrece como un servicio de utilidad para facilitar
               la toma de pedidos en grupo de forma colaborativa.
@@ -207,7 +207,7 @@ function LandingPage() {
 
           <div className="landing-footer-divider" />
           <p style={{ fontSize: 12, color: '#64748b' }}>Los datos se almacenan únicamente durante 5 días. No compartimos información con terceros.</p>
-          <p style={{ fontSize: 12, color: '#64748b', marginTop: 8 }}><i className="fas fa-shield" /> Este proyecto no está afiliado a 100 Montaditos® ni Euromania®</p>
+          <p style={{ fontSize: 12, color: '#64748b', marginTop: 8 }}><i className="fas fa-shield" /> Este proyecto no está afiliado a 100 Montaditos® ni 100Bocas®</p>
           <p style={{ marginTop: 16 }}><Link to="/app" style={{ fontSize: 13, color: '#6ee7b7' }}><i className="fas fa-arrow-right" /> Ir a la aplicación</Link></p>
         </div>
       </footer>
