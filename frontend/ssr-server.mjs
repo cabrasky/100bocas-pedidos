@@ -188,6 +188,8 @@ function ssrRender(req, res) {
 app.get('/', ssrRender);
 app.get('/app', ssrRender);
 app.get(/^\/app(?:\/.*)?$/, ssrRender);
+app.get('/admin', ssrRender);
+app.get(/^\/admin(?:\/.*)?$/, ssrRender);
 
 // Catch-all: serve client index.html
 app.get(/^\/(?:assets\/.*)?$/, (req, res) => {
