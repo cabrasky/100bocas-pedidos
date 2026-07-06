@@ -176,7 +176,7 @@ function LandingPage() {
             <p>
               Esta aplicación es un <strong>proyecto independiente y no oficial</strong>.
               No está vinculada, patrocinada ni aprobada por la marca{' '}
-              <strong>100 Montaditos</strong> ni por <strong>100Bocas</strong>.
+              <strong>100 Montaditos</strong>.
               Todos los nombres de productos y marcas registradas pertenecen a sus respectivos propietarios.
               Esta herramienta se ofrece como un servicio de utilidad para facilitar
               la toma de pedidos en grupo de forma colaborativa.
