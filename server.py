@@ -1609,6 +1609,13 @@ async def app_spa(request: Request):
     return await _proxy_to_ssr(request.url.path)
 
 
+@app.get("/admin")
+@app.get("/admin/{path:path}")
+async def admin_spa(request: Request):
+    """Serve the admin SPA via SSR proxy."""
+    return await _proxy_to_ssr(request.url.path)
+
+
 @app.get("/robots.txt")
 async def robots():
     return _secure_response(HTMLResponse(content=_robots_txt, media_type="text/plain"))
@@ -1702,8 +1709,8 @@ async def spa_fallback(request, call_next):
     response = await call_next(request)
     _secure_response(response)
 
-    # If 404 and frontend is built, serve SPA index.html instead (only for /app path)
-    if response.status_code == 404 and os.path.isdir(STATIC_DIR) and path.startswith("/app"):
+    # If 404 and frontend is built, serve SPA index.html instead (only for /app and /admin paths)
+    if response.status_code == 404 and os.path.isdir(STATIC_DIR) and (path.startswith("/app") or path.startswith("/admin")):
         index_path = os.path.join(STATIC_DIR, "index.html")
         if os.path.isfile(index_path):
             with open(index_path, encoding="utf-8") as fh:
