@@ -148,6 +148,7 @@ async def cleanup_old_sessions():
                     pass
             del ws_rooms[code]
     _clean_rate_limiters()
+    await _clean_expired_bans()
 
 
 async def periodic_cleanup():
@@ -159,84 +160,109 @@ async def periodic_cleanup():
             print(f"[cleanup] Error: {exc}")
 
 
-# ── IP Ban system ────────────────────────────────
-BANNED_IPS_FILE = os.path.join(os.path.dirname(__file__), "banned_ips.json")
+# ── IP Ban system (DB-backed) ──────────────────────
 AUTO_BAN_THRESHOLD = int(os.getenv("BOCAS_AUTO_BAN_THRESHOLD", "5"))   # Rate limit hits before auto-ban
 AUTO_BAN_DURATION = int(os.getenv("BOCAS_AUTO_BAN_DURATION", "86400"))  # 24h auto-ban duration (secs)
 
-_banned_ips: dict[str, dict] = {}  # ip -> {banned_at, reason, auto_ban, expires_at}
-_ban_lock = asyncio.Lock()
+_banned_ips_cache: dict[str, str] = {}  # ip -> reason (in-memory cache, synced from DB)
 _rpm_violations: dict[str, list[float]] = defaultdict(list)  # IP -> timestamps of rate limit violations
 
 
-def _load_banned_ips():
-    """Load banned IPs from file on startup."""
-    global _banned_ips
-    if os.path.exists(BANNED_IPS_FILE):
-        try:
-            with open(BANNED_IPS_FILE) as f:
-                _banned_ips = json.load(f).get("ips", {})
-        except (json.JSONDecodeError, OSError):
-            _banned_ips = {}
-    print(f"[ban] Loaded {len(_banned_ips)} banned IPs")
-
-
-def _save_banned_ips():
-    """Persist banned IPs to file."""
-    try:
-        with open(BANNED_IPS_FILE, "w") as f:
-            json.dump({"ips": _banned_ips}, f, indent=2)
-    except OSError as exc:
-        print(f"[ban] Error saving banned IPs: {exc}")
+async def _ensure_bans_table():
+    """Create banned_ips table if not exists + clean expired bans."""
+    assert pool
+    async with pool.acquire() as conn:
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS banned_ips (
+                id          SERIAL PRIMARY KEY,
+                ip          VARCHAR(45) NOT NULL UNIQUE,
+                banned_at   DOUBLE PRECISION NOT NULL,
+                reason      TEXT NOT NULL,
+                auto_ban    BOOLEAN DEFAULT false,
+                expires_at  DOUBLE PRECISION
+            )
+        """)
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_banned_ips_ip ON banned_ips(ip)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_banned_ips_expires ON banned_ips(expires_at)")
+        now_t = time.time()
+        deleted = await conn.execute(
+            "DELETE FROM banned_ips WHERE expires_at IS NOT NULL AND expires_at < $1", now_t
+        )
+        if "DELETE" in deleted and int(deleted.split()[-1]) > 0:
+            print(f"[ban] Cleaned {deleted.split()[-1]} expired bans on startup")
+        rows = await conn.fetch(
+            "SELECT ip, reason FROM banned_ips WHERE expires_at IS NULL OR expires_at > $1", now_t
+        )
+        _banned_ips_cache.update({row["ip"]: row["reason"] for row in rows})
+    print(f"[ban] Loaded {len(_banned_ips_cache)} banned IPs from DB")
 
 
 def _is_ip_banned(ip: str) -> str | None:
-    """Check if IP is banned. Returns reason string or None."""
-    if ip in _banned_ips:
-        entry = _banned_ips[ip]
-        expires = entry.get("expires_at")
-        if expires is not None and time.time() > expires:
-            # Expired — remove
-            del _banned_ips[ip]
-            _save_banned_ips()
-            return None
-        return entry.get("reason", "Bloqueado")
-    return None
+    """Check if IP is banned using in-memory cache (sync, hot path)."""
+    return _banned_ips_cache.get(ip)
 
 
-def _ban_ip(ip: str, reason: str = "Manual", auto_ban: bool = False) -> dict:
+async def _ban_ip(ip: str, reason: str = "Manual", auto_ban: bool = False) -> dict:
     """Ban an IP. Returns the ban entry."""
-    now = time.time()
-    entry = {
-        "banned_at": now,
-        "reason": reason,
-        "auto_ban": auto_ban,
-        "expires_at": now + AUTO_BAN_DURATION if auto_ban else None,
-    }
-    _banned_ips[ip] = entry
-    _save_banned_ips()
-    return entry
+    assert pool
+    now_t = time.time()
+    expires_at = now_t + AUTO_BAN_DURATION if auto_ban else None
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """INSERT INTO banned_ips (ip, banned_at, reason, auto_ban, expires_at)
+               VALUES ($1, $2, $3, $4, $5)
+               ON CONFLICT (ip) DO UPDATE
+               SET banned_at = $2, reason = $3, auto_ban = $4, expires_at = $5""",
+            ip, now_t, reason, auto_ban, expires_at,
+        )
+    _banned_ips_cache[ip] = reason
+    print(f"[ban] {'Auto' if auto_ban else 'Manual'} ban: {ip} — {reason}")
+    return {"banned_at": now_t, "reason": reason, "auto_ban": auto_ban, "expires_at": expires_at}
 
 
-def _unban_ip(ip: str) -> bool:
-    """Remove an IP ban. Returns True if it existed."""
-    if ip in _banned_ips:
-        del _banned_ips[ip]
-        _save_banned_ips()
-        return True
-    return False
+async def _unban_ip(ip: str) -> bool:
+    """Remove an IP ban from DB. Returns True if it existed."""
+    assert pool
+    async with pool.acquire() as conn:
+        result = await conn.execute("DELETE FROM banned_ips WHERE ip = $1", ip)
+        removed = "DELETE" in result and int(result.split()[-1]) > 0
+    _banned_ips_cache.pop(ip, None)
+    if removed:
+        print(f"[ban] Unbanned {ip}")
+    return removed
+
+
+async def _clean_expired_bans():
+    """Remove expired auto-bans from DB and refresh cache."""
+    assert pool
+    now_t = time.time()
+    async with pool.acquire() as conn:
+        deleted = await conn.execute(
+            "DELETE FROM banned_ips WHERE expires_at IS NOT NULL AND expires_at < $1", now_t
+        )
+        count = int(deleted.split()[-1]) if "DELETE" in deleted else 0
+        if count:
+            rows = await conn.fetch(
+                "SELECT ip, reason FROM banned_ips WHERE expires_at IS NULL OR expires_at > $1", now_t
+            )
+            _banned_ips_cache.clear()
+            _banned_ips_cache.update({row["ip"]: row["reason"] for row in rows})
+            print(f"[ban] Cleaned {count} expired bans")
+    return count
 
 
 def _record_rpm_violation(ip: str):
     """Track a rate limit violation and auto-ban if threshold exceeded."""
-    now = time.time()
-    window = now - 600  # 10 min window for violations
+    now_t = time.time()
+    window = now_t - 600  # 10 min window
     _rpm_violations[ip] = [t for t in _rpm_violations[ip] if t > window]
-    _rpm_violations[ip].append(now)
+    _rpm_violations[ip].append(now_t)
     if len(_rpm_violations[ip]) >= AUTO_BAN_THRESHOLD:
-        _ban_ip(ip, reason=f"Auto-ban: {len(_rpm_violations[ip])} rate limit violations en 10 min", auto_ban=True)
-        print(f"[ban] Auto-banned {ip} ({len(_rpm_violations[ip])} violations)")
-        _rpm_violations[ip] = []  # Reset counter
+        count = len(_rpm_violations[ip])
+        _rpm_violations[ip] = []
+        asyncio.create_task(
+            _ban_ip(ip, reason=f"Auto-ban: {count} rate limit violations en 10 min", auto_ban=True)
+        )
 
 
 # ── Admin auth ────────────────────────────────────
@@ -284,7 +310,7 @@ async def lifespan(_app: FastAPI):
     global pool, _cleanup_task
     pool = await asyncpg.create_pool(DB_DSN, min_size=2, max_size=10)
     _cleanup_task = asyncio.create_task(periodic_cleanup())
-    _load_banned_ips()
+    await _ensure_bans_table()
     print(f"[server] Security: RPM={MAX_REQUESTS_PER_MIN}, WS/IP={MAX_WS_PER_IP}, "
           f"WS/session={MAX_WS_PER_SESSION}, WS total={MAX_WS_TOTAL}")
     yield
@@ -735,19 +761,27 @@ BAN_ENABLED = True  # Set False to disable IP blocking entirely
 
 @app.get("/api/admin/bans")
 async def list_bans(request: Request):
-    """List all active banned IPs."""
+    """List all active banned IPs from DB."""
     auth_error = _admin_required(request)
     if auth_error:
         return auth_error
+    assert pool
     now = time.time()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT ip, banned_at, reason, auto_ban, expires_at "
+            "FROM banned_ips WHERE expires_at IS NULL OR expires_at > $1 "
+            "ORDER BY banned_at DESC",
+            now,
+        )
     bans = []
-    for ip, entry in sorted(_banned_ips.items(), key=lambda x: x[1].get("banned_at", 0), reverse=True):
-        expires = entry.get("expires_at")
+    for row in rows:
+        expires = row["expires_at"]
         bans.append({
-            "ip": ip,
-            "banned_at": entry.get("banned_at"),
-            "reason": entry.get("reason", "No especificado"),
-            "auto_ban": entry.get("auto_ban", False),
+            "ip": row["ip"],
+            "banned_at": row["banned_at"],
+            "reason": row["reason"],
+            "auto_ban": row["auto_ban"],
             "expires_in": max(0, int(expires - now)) if expires else None,
         })
     return {
@@ -785,8 +819,7 @@ async def ban_ip_endpoint(request: Request):
     if _is_ip_banned(ip):
         return JSONResponse({"error": f"IP {ip} ya está bloqueada"}, status_code=409)
 
-    entry = _ban_ip(ip, reason=reason, auto_ban=False)
-    print(f"[ban] Manual ban: {ip} — {reason}")
+    await _ban_ip(ip, reason=reason, auto_ban=False)
     return {"status": "ok", "ip": ip, "reason": reason}
 
 
@@ -801,8 +834,7 @@ async def unban_ip_endpoint(request: Request, ip: str):
     except ValueError:
         return JSONResponse({"error": "Dirección IP inválida"}, status_code=400)
 
-    if _unban_ip(ip):
-        print(f"[ban] Manual unban: {ip}")
+    if await _unban_ip(ip):
         return {"status": "ok", "ip": ip, "message": "IP desbloqueada"}
     return JSONResponse({"error": f"IP {ip} no está bloqueada"}, status_code=404)
 
