@@ -19,7 +19,6 @@ import OrderPanel from '../components/OrderPanel';
 import QRModal from '../components/modals/QRModal';
 import PrivacyModal from '../components/modals/PrivacyModal';
 import ToastContainer from '../components/ui/ToastContainer';
-import AdminPanel from '../components/admin/AdminPanel';
 import OrderViewModal from '../components/modals/OrderViewModal';
 import OrderHistoryModal from '../components/modals/OrderHistoryModal';
 import HistoryPanel from '../components/HistoryPanel';
@@ -38,7 +37,6 @@ function OrderPage() {
   const [loading, setLoading] = useState(true);
   const [qrOpen, setQrOpen] = useState(false);
   const [privacyOpen, setPrivacyOpen] = useState(false);
-  const [showAdmin, setShowAdmin] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [orderViewMode, setOrderViewMode] = useState<'by-person' | 'consolidated' | null>(null);
   const [showOrderHistory, setShowOrderHistory] = useState(false);
@@ -410,10 +408,6 @@ function OrderPage() {
         persons={persons}
         sessionCode={sessionCode}
       />
-
-      {showAdmin && (
-        <AdminPanel onClose={() => setShowAdmin(false)} />
-      )}
     </div>
   );
 }

@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import AdminPanel from './admin/AdminPanel';
 
 interface Props {
   onLogin: (name: string, code?: string) => Promise<void>;
@@ -11,7 +10,6 @@ function LoginScreen({ onLogin }: Props) {
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [showAdmin, setShowAdmin] = useState(false);
 
   useEffect(() => {
     // Check if we have a join code from URL param (injected by App)
@@ -29,20 +27,20 @@ function LoginScreen({ onLogin }: Props) {
     try {
       await onLogin(name.trim());
     } catch {
-      setError('Error al crear sesión');
+      setError('Error al crear sesion');
       setBusy(false);
     }
   };
 
   const handleJoin = async () => {
     if (!name.trim()) { setError('Escribe tu nombre'); return; }
-    if (!code.trim() || code.trim().length < 4) { setError('Código inválido'); return; }
+    if (!code.trim() || code.trim().length < 4) { setError('Codigo invalido'); return; }
     setError('');
     setBusy(true);
     try {
       await onLogin(name.trim(), code.trim().toUpperCase());
     } catch (e: any) {
-      setError(e.message || 'Sesión no encontrada');
+      setError(e.message || 'Sesion no encontrada');
       setBusy(false);
     }
   };
@@ -68,15 +66,15 @@ function LoginScreen({ onLogin }: Props) {
           />
 
           <button className="btn-primary" onClick={handleCreate} disabled={busy}>
-            <i className="fas fa-plus-circle"></i> Crear sesión nueva
+            <i className="fas fa-plus-circle"></i> Crear sesion nueva
           </button>
 
-          <div className="divider">o únete a una existente</div>
+          <div className="divider">o unite a una existente</div>
 
           <div className="join-row">
             <input
               type="text"
-              placeholder="CÓDIGO"
+              placeholder="CODIGO"
               maxLength={6}
               value={code}
               onChange={e => setCode(e.target.value.toUpperCase())}
@@ -92,17 +90,12 @@ function LoginScreen({ onLogin }: Props) {
           </div>
 
           <div className="login-footer-links">
-            <button className="admin-link" onClick={() => setShowAdmin(true)}>
-              <i className="fas fa-chart-simple"></i> Estadísticas
-            </button>
             <Link to="/" className="admin-link">
               <i className="fas fa-circle-info"></i> Acerca de
             </Link>
           </div>
         </div>
       </div>
-
-      {showAdmin && <AdminPanel onClose={() => setShowAdmin(false)} />}
     </>
   );
 }
