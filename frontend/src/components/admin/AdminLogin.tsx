@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 
 interface Props {
   onLogin: (token: string) => void;
@@ -33,7 +34,6 @@ function AdminLogin({ onLogin }: Props) {
         setLoginBusy(false);
       } else {
         onLogin(data.token);
-        setLoginBusy(false);
       }
     } catch {
       setLoginError('Error de conexión');
@@ -42,24 +42,40 @@ function AdminLogin({ onLogin }: Props) {
   };
 
   return (
-    <div className="admin-body">
-      <div className="admin-login">
-        <div className="admin-login-icon"><i className="fas fa-lock"></i></div>
-        <h3>Acceso restringido</h3>
-        <p className="admin-login-desc">Introduce la contraseña de administrador para acceder al panel.</p>
+    <div className="admin-login-card">
+      <div className="admin-login-brand">
+        <i className="fas fa-lock" />
+      </div>
+      <h3>Acceso restringido</h3>
+      <p className="admin-login-desc">
+        Introduce la contraseña de administrador para gestionar las cartas,
+        estadísticas y la configuración del panel.
+      </p>
+
+      <form onSubmit={e => { e.preventDefault(); handleLogin(); }}>
         <input
           type="password"
           className="admin-login-input"
           placeholder="Contraseña de administrador"
           value={password}
           onChange={e => setPassword(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter') handleLogin(); }}
           autoComplete="off"
+          disabled={loginBusy}
         />
-        {loginError && <div className="admin-login-error"> {loginError}</div>}
-        <button className="admin-login-btn" onClick={handleLogin} disabled={loginBusy || !password.trim()}>
-          {loginBusy ? <><i className="fas fa-spinner fa-spin"></i> Verificando...</> : <><i className="fas fa-right-to-bracket"></i> Entrar</>}
+        {loginError && <div className="admin-login-error">{loginError}</div>}
+        <button className="admin-login-btn" type="submit" disabled={loginBusy || !password.trim()}>
+          {loginBusy ? (
+            <><i className="fas fa-spinner fa-spin"></i> Verificando...</>
+          ) : (
+            <><i className="fas fa-right-to-bracket"></i> Entrar</>
+          )}
         </button>
+      </form>
+
+      <div className="admin-login-footer">
+        <Link to="/" className="admin-login-back">
+          <i className="fas fa-arrow-left" /> Volver a la aplicación
+        </Link>
       </div>
     </div>
   );
