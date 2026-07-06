@@ -207,7 +207,7 @@ function LandingPage() {
 
           <div className="landing-footer-divider" />
           <p style={{ fontSize: 12, color: '#64748b' }}>Los datos se almacenan únicamente durante 5 días. No compartimos información con terceros.</p>
-          <p style={{ fontSize: 12, color: '#64748b', marginTop: 8 }}><i className="fas fa-shield" /> Este proyecto no está afiliado a 100 Montaditos® ni 100Bocas®</p>
+          <p style={{ fontSize: 12, color: '#64748b', marginTop: 8 }}><i className="fas fa-shield" /> Este proyecto no está afiliado a 100 Montaditos®</p>
           <p style={{ marginTop: 16 }}><Link to="/app" style={{ fontSize: 13, color: '#6ee7b7' }}><i className="fas fa-arrow-right" /> Ir a la aplicación</Link></p>
         </div>
       </footer>
