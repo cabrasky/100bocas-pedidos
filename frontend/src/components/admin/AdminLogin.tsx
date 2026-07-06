@@ -33,6 +33,7 @@ function AdminLogin({ onLogin }: Props) {
         setLoginError(data.error);
         setLoginBusy(false);
       } else {
+        localStorage.setItem('100bocas_admin_token', data.token);
         onLogin(data.token);
       }
     } catch {

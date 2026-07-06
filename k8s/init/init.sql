@@ -83,7 +83,27 @@ CREATE TABLE IF NOT EXISTS banned_ips (
     banned_at   DOUBLE PRECISION NOT NULL,
     reason      TEXT NOT NULL,
     auto_ban    BOOLEAN DEFAULT false,
-    expires_at  DOUBLE PRECISION
+    expires_at  DOUBLE PRECISION,
+    ban_type    VARCHAR(20) DEFAULT 'ban',
+    offense_count INTEGER DEFAULT 1
 );
 CREATE INDEX IF NOT EXISTS idx_banned_ips_ip ON banned_ips(ip);
 CREATE INDEX IF NOT EXISTS idx_banned_ips_expires ON banned_ips(expires_at);
+CREATE INDEX IF NOT EXISTS idx_banned_ips_type ON banned_ips(ban_type);
+
+-- ── CIDR Bans ─────────────────────────────────────
+CREATE TABLE IF NOT EXISTS cidr_bans (
+    id          SERIAL PRIMARY KEY,
+    cidr        VARCHAR(45) NOT NULL UNIQUE,
+    banned_at   DOUBLE PRECISION NOT NULL,
+    reason      TEXT NOT NULL,
+    auto_ban    BOOLEAN DEFAULT false
+);
+
+-- ── Whitelisted IPs ──────────────────────────────
+CREATE TABLE IF NOT EXISTS whitelisted_ips (
+    id          SERIAL PRIMARY KEY,
+    ip_cidr     VARCHAR(45) NOT NULL UNIQUE,
+    note        TEXT DEFAULT '',
+    created_at  DOUBLE PRECISION NOT NULL
+);

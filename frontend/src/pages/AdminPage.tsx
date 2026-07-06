@@ -14,7 +14,7 @@ const TABS: { id: TabId; icon: string; label: string }[] = [
 ];
 
 function AdminPage() {
-  const [token, setToken] = useState<string | null>(null);
+  const [token, setToken] = useState<string | null>(() => localStorage.getItem('100bocas_admin_token'));
   const [tab, setTab] = useState<TabId>('stats');
 
   const base = window.location.origin;
@@ -26,6 +26,7 @@ function AdminPage() {
 
   const handleLogout = () => {
     if (window.confirm('¿Cerrar sesión de administrador?')) {
+      localStorage.removeItem('100bocas_admin_token');
       setToken(null);
     }
   };

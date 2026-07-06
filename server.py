@@ -7,13 +7,15 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import hmac
+import ipaddress
 import json
 import os
 import random
-from datetime import datetime
 import re
 import string
 import time
+import urllib.parse
+from datetime import datetime
 from collections import defaultdict
 from contextlib import asynccontextmanager
 from ipaddress import ip_address, ip_network
@@ -163,15 +165,23 @@ async def periodic_cleanup():
 # ── IP Ban system (DB-backed) ──────────────────────
 AUTO_BAN_THRESHOLD = int(os.getenv("BOCAS_AUTO_BAN_THRESHOLD", "5"))   # Rate limit hits before auto-ban
 AUTO_BAN_DURATION = int(os.getenv("BOCAS_AUTO_BAN_DURATION", "86400"))  # 24h auto-ban duration (secs)
+PROGRESSIVE_INCREMENTS = [3600, 21600, 86400, 604800]  # 1h, 6h, 24h, 7d
+PROGRESSIVE_LABELS = ["1h", "6h", "24h", "7d"]
 
-_banned_ips_cache: dict[str, str] = {}  # ip -> reason (in-memory cache, synced from DB)
-_rpm_violations: dict[str, list[float]] = defaultdict(list)  # IP -> timestamps of rate limit violations
+_banned_ips_cache: dict[str, str] = {}       # ip -> reason
+_ban_type_cache: dict[str, str] = {}         # ip -> 'ban' | 'soft'
+_ban_expiry_cache: dict[str, float] = {}     # ip -> expires_at
+_whitelist_cache: list[str] = []             # list of CIDR strings
+_cidr_bans_cache: list[tuple[str, str]] = [] # (cidr, reason)
+_offense_cache: dict[str, int] = {}          # ip -> offense count (progressive)
+_rpm_violations: dict[str, list[float]] = defaultdict(list)
 
 
 async def _ensure_bans_table():
-    """Create banned_ips table if not exists + clean expired bans."""
+    """Create/migrate ban tables, load caches."""
     assert pool
     async with pool.acquire() as conn:
+        # Main ban table
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS banned_ips (
                 id          SERIAL PRIMARY KEY,
@@ -179,61 +189,246 @@ async def _ensure_bans_table():
                 banned_at   DOUBLE PRECISION NOT NULL,
                 reason      TEXT NOT NULL,
                 auto_ban    BOOLEAN DEFAULT false,
-                expires_at  DOUBLE PRECISION
+                expires_at  DOUBLE PRECISION,
+                ban_type    VARCHAR(20) DEFAULT 'ban',
+                offense_count INTEGER DEFAULT 1
             )
         """)
+        # Migration: add columns if missing on existing tables
+        for col, typ in [("ban_type", "VARCHAR(20) DEFAULT 'ban'"),
+                         ("offense_count", "INTEGER DEFAULT 1")]:
+            await conn.execute(f"ALTER TABLE banned_ips ADD COLUMN IF NOT EXISTS {col} {typ}")
+
+        # CIDR bans table
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS cidr_bans (
+                id          SERIAL PRIMARY KEY,
+                cidr        VARCHAR(45) NOT NULL UNIQUE,
+                banned_at   DOUBLE PRECISION NOT NULL,
+                reason      TEXT NOT NULL,
+                auto_ban    BOOLEAN DEFAULT false
+            )
+        """)
+        # Whitelist table
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS whitelisted_ips (
+                id          SERIAL PRIMARY KEY,
+                ip_cidr     VARCHAR(45) NOT NULL UNIQUE,
+                note        TEXT DEFAULT '',
+                created_at  DOUBLE PRECISION NOT NULL
+            )
+        """)
+
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_banned_ips_ip ON banned_ips(ip)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_banned_ips_expires ON banned_ips(expires_at)")
-        now_t = time.time()
-        deleted = await conn.execute(
-            "DELETE FROM banned_ips WHERE expires_at IS NOT NULL AND expires_at < $1", now_t
-        )
-        if "DELETE" in deleted and int(deleted.split()[-1]) > 0:
-            print(f"[ban] Cleaned {deleted.split()[-1]} expired bans on startup")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_banned_ips_type ON banned_ips(ban_type)")
+    await _load_all_caches()
+    print(f"[ban] Loaded {len(_banned_ips_cache)} bans, {len(_cidr_bans_cache)} CIDR bans, {len(_whitelist_cache)} whitelisted from DB")
+
+
+async def _load_all_caches():
+    """Load all ban/whitelist data from DB into memory caches."""
+    global _banned_ips_cache, _ban_type_cache, _ban_expiry_cache, _whitelist_cache, _cidr_bans_cache, _offense_cache
+    assert pool
+    now_t = time.time()
+    async with pool.acquire() as conn:
+        # Clean expired first
+        await conn.execute("DELETE FROM banned_ips WHERE expires_at IS NOT NULL AND expires_at < $1", now_t)
+
+        # Banned IPs
         rows = await conn.fetch(
-            "SELECT ip, reason FROM banned_ips WHERE expires_at IS NULL OR expires_at > $1", now_t
+            "SELECT ip, reason, ban_type, expires_at, offense_count FROM banned_ips "
+            "WHERE ban_type IN ('ban', 'soft') AND (expires_at IS NULL OR expires_at > $1)", now_t
         )
-        _banned_ips_cache.update({row["ip"]: row["reason"] for row in rows})
-    print(f"[ban] Loaded {len(_banned_ips_cache)} banned IPs from DB")
+        _banned_ips_cache = {}
+        _ban_type_cache = {}
+        _ban_expiry_cache = {}
+        _offense_cache = {}
+        for row in rows:
+            ip = row["ip"]
+            _banned_ips_cache[ip] = row["reason"]
+            _ban_type_cache[ip] = row["ban_type"]
+            _ban_expiry_cache[ip] = row["expires_at"] if row["expires_at"] else 0
+            _offense_cache[ip] = row["offense_count"]
+
+        # Whitelist
+        wrows = await conn.fetch("SELECT ip_cidr FROM whitelisted_ips")
+        _whitelist_cache = [r["ip_cidr"] for r in wrows]
+
+        # CIDR bans
+        crows = await conn.fetch("SELECT cidr, reason FROM cidr_bans")
+        _cidr_bans_cache = [(r["cidr"], r["reason"]) for r in crows]
 
 
-def _is_ip_banned(ip: str) -> str | None:
-    """Check if IP is banned using in-memory cache (sync, hot path)."""
-    return _banned_ips_cache.get(ip)
+def _get_ban_duration_h(ip: str) -> str:
+    """Return human duration for progressive bans."""
+    duration = _ban_expiry_cache.get(ip, 0)
+    if not duration:
+        return "Permanente"
+    remaining = duration - time.time()
+    if remaining <= 0:
+        return "Expirado"
+    hrs = remaining / 3600
+    if hrs < 24:
+        return f"{int(hrs)}h"
+    return f"{int(hrs/24)}d"
 
 
-async def _ban_ip(ip: str, reason: str = "Manual", auto_ban: bool = False) -> dict:
+# ── Core checks (sync, hot path) ──────────────────
+
+def _is_ip_banned(ip: str) -> tuple[str | None, str | None]:
+    """Check if IP is banned. Returns (reason, ban_type) or (None, None).
+    ban_type is 'ban' (block), 'soft' (warn only), or None."""
+    reason = _banned_ips_cache.get(ip)
+    if reason is None:
+        return None, None
+    btype = _ban_type_cache.get(ip, "ban")
+    if btype == "soft":
+        return reason, "soft"
+    # Check expiry
+    expires = _ban_expiry_cache.get(ip)
+    if expires and expires < time.time():
+        return None, None
+    return reason, "ban"
+
+
+def _is_whitelisted(ip: str) -> bool:
+    """Check if IP is whitelisted (bypasses rate limits and bans)."""
+    for entry in _whitelist_cache:
+        try:
+            if "/" in entry:
+                if ipaddress.ip_address(ip) in ipaddress.ip_network(entry, strict=False):
+                    return True
+            elif entry == ip:
+                return True
+        except ValueError:
+            continue
+    return False
+
+
+def _check_cidr_bans(ip: str) -> str | None:
+    """Check if IP falls under any CIDR ban. Returns reason or None."""
+    try:
+        addr = ipaddress.ip_address(ip)
+        for cidr, reason in _cidr_bans_cache:
+            if addr in ipaddress.ip_network(cidr, strict=False):
+                return reason
+    except ValueError:
+        pass
+    return None
+
+
+def _get_progressive_duration(ip: str) -> int:
+    """Get escalating ban duration based on offense count."""
+    count = _offense_cache.get(ip, 0)
+    idx = min(count, len(PROGRESSIVE_INCREMENTS) - 1)
+    return PROGRESSIVE_INCREMENTS[idx]
+
+
+# ── Mutations (async, DB) ─────────────────────────
+
+async def _ban_ip(ip: str, reason: str = "Manual", auto_ban: bool = False,
+                  duration: int | None = None, ban_type: str = "ban") -> dict:
     """Ban an IP. Returns the ban entry."""
     assert pool
     now_t = time.time()
-    expires_at = now_t + AUTO_BAN_DURATION if auto_ban else None
+    if duration is None:
+        if auto_ban:
+            duration = _get_progressive_duration(ip)
+        else:
+            duration = 0  # permanent
+    expires_at = now_t + duration if duration and duration > 0 else None
+
+    # Track progressive offense count
+    current_offense = _offense_cache.get(ip, 0)
+    if auto_ban:
+        current_offense += 1
+
     async with pool.acquire() as conn:
         await conn.execute(
-            """INSERT INTO banned_ips (ip, banned_at, reason, auto_ban, expires_at)
-               VALUES ($1, $2, $3, $4, $5)
+            """INSERT INTO banned_ips (ip, banned_at, reason, auto_ban, expires_at, ban_type, offense_count)
+               VALUES ($1, $2, $3, $4, $5, $6, $7)
                ON CONFLICT (ip) DO UPDATE
-               SET banned_at = $2, reason = $3, auto_ban = $4, expires_at = $5""",
-            ip, now_t, reason, auto_ban, expires_at,
+               SET banned_at = $2, reason = $3, auto_ban = $4,
+                   expires_at = $5, ban_type = $6, offense_count = $7""",
+            ip, now_t, reason, auto_ban, expires_at, ban_type, current_offense,
         )
     _banned_ips_cache[ip] = reason
-    print(f"[ban] {'Auto' if auto_ban else 'Manual'} ban: {ip} — {reason}")
-    return {"banned_at": now_t, "reason": reason, "auto_ban": auto_ban, "expires_at": expires_at}
+    _ban_type_cache[ip] = ban_type
+    _ban_expiry_cache[ip] = expires_at or 0
+    _offense_cache[ip] = current_offense
+    dur_str = "permanent" if expires_at is None else f"{duration}s"
+    print(f"[ban] {'Auto' if auto_ban else 'Manual'} ban ({ban_type}): {ip} — {reason} [{dur_str}]")
+    return {"banned_at": now_t, "reason": reason, "auto_ban": auto_ban, "expires_at": expires_at, "ban_type": ban_type}
 
 
 async def _unban_ip(ip: str) -> bool:
     """Remove an IP ban from DB. Returns True if it existed."""
     assert pool
     async with pool.acquire() as conn:
-        result = await conn.execute("DELETE FROM banned_ips WHERE ip = $1", ip)
+        result = await conn.execute("DELETE FROM banned_ips WHERE ip = $1 AND ban_type IN ('ban', 'soft')", ip)
         removed = "DELETE" in result and int(result.split()[-1]) > 0
     _banned_ips_cache.pop(ip, None)
+    _ban_type_cache.pop(ip, None)
+    _ban_expiry_cache.pop(ip, None)
+    _offense_cache.pop(ip, None)
     if removed:
         print(f"[ban] Unbanned {ip}")
     return removed
 
 
+async def _ban_cidr(cidr: str, reason: str = "CIDR block") -> dict:
+    """Ban an entire subnet."""
+    assert pool
+    now_t = time.time()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO cidr_bans (cidr, banned_at, reason) VALUES ($1, $2, $3) ON CONFLICT (cidr) DO NOTHING",
+            cidr, now_t, reason,
+        )
+    _cidr_bans_cache.append((cidr, reason))
+    print(f"[ban] CIDR ban: {cidr} — {reason}")
+    return {"cidr": cidr, "banned_at": now_t, "reason": reason}
+
+
+async def _unban_cidr(cidr: str) -> bool:
+    """Remove a CIDR ban."""
+    assert pool
+    async with pool.acquire() as conn:
+        result = await conn.execute("DELETE FROM cidr_bans WHERE cidr = $1", cidr)
+        removed = "DELETE" in result and int(result.split()[-1]) > 0
+    _cidr_bans_cache[:] = [(c, r) for c, r in _cidr_bans_cache if c != cidr]
+    return removed
+
+
+async def _add_whitelist(ip_cidr: str, note: str = "") -> bool:
+    """Add an IP or CIDR to the whitelist."""
+    assert pool
+    now_t = time.time()
+    async with pool.acquire() as conn:
+        result = await conn.execute(
+            "INSERT INTO whitelisted_ips (ip_cidr, note, created_at) VALUES ($1, $2, $3) ON CONFLICT (ip_cidr) DO NOTHING",
+            ip_cidr, note, now_t,
+        )
+        added = "INSERT" in result and int(result.split()[-1]) > 0
+    if added:
+        _whitelist_cache.append(ip_cidr)
+        print(f"[ban] Whitelisted: {ip_cidr}")
+    return added
+
+
+async def _remove_whitelist(ip_cidr: str) -> bool:
+    """Remove an IP/CIDR from the whitelist."""
+    assert pool
+    async with pool.acquire() as conn:
+        result = await conn.execute("DELETE FROM whitelisted_ips WHERE ip_cidr = $1", ip_cidr)
+        removed = "DELETE" in result and int(result.split()[-1]) > 0
+    _whitelist_cache[:] = [w for w in _whitelist_cache if w != ip_cidr]
+    return removed
+
+
 async def _clean_expired_bans():
-    """Remove expired auto-bans from DB and refresh cache."""
+    """Remove expired bans from DB and refresh caches."""
     assert pool
     now_t = time.time()
     async with pool.acquire() as conn:
@@ -241,28 +436,34 @@ async def _clean_expired_bans():
             "DELETE FROM banned_ips WHERE expires_at IS NOT NULL AND expires_at < $1", now_t
         )
         count = int(deleted.split()[-1]) if "DELETE" in deleted else 0
-        if count:
-            rows = await conn.fetch(
-                "SELECT ip, reason FROM banned_ips WHERE expires_at IS NULL OR expires_at > $1", now_t
-            )
-            _banned_ips_cache.clear()
-            _banned_ips_cache.update({row["ip"]: row["reason"] for row in rows})
-            print(f"[ban] Cleaned {count} expired bans")
+    if count:
+        await _load_all_caches()
+        print(f"[ban] Cleaned {count} expired bans")
     return count
 
 
-def _record_rpm_violation(ip: str):
-    """Track a rate limit violation and auto-ban if threshold exceeded."""
+def _get_progressive_label(count: int) -> str:
+    """Return human label for progressive offense level."""
+    idx = min(count - 1, len(PROGRESSIVE_LABELS) - 1)
+    return PROGRESSIVE_LABELS[idx] if count > 0 else ""
+
+
+def _record_rpm_violation(ip: str, soft_mode: bool = False):
+    """Track a rate limit violation and auto-ban if threshold exceeded.
+    In soft_mode, logs the violation but does NOT block."""
     now_t = time.time()
-    window = now_t - 600  # 10 min window
+    window = now_t - 600
     _rpm_violations[ip] = [t for t in _rpm_violations[ip] if t > window]
     _rpm_violations[ip].append(now_t)
     if len(_rpm_violations[ip]) >= AUTO_BAN_THRESHOLD:
         count = len(_rpm_violations[ip])
         _rpm_violations[ip] = []
-        asyncio.create_task(
-            _ban_ip(ip, reason=f"Auto-ban: {count} rate limit violations en 10 min", auto_ban=True)
-        )
+        if not soft_mode:
+            asyncio.create_task(
+                _ban_ip(ip, reason=f"Auto-ban: {count} rate limit violations en 10 min", auto_ban=True)
+            )
+        else:
+            print(f"[ban] Soft violation logged: {ip} ({count} violations, no action)")
 
 
 # ── Admin auth ────────────────────────────────────
@@ -410,22 +611,38 @@ async def security_middleware(request: Request, call_next):
     if re.search(r"[\x00-\x1f\x7f-\x9f]", path):
         return JSONResponse({"error": "Bad request"}, status_code=400)
 
-    # Check IP ban — applies to ALL paths, blocks before any processing
-    ban_reason = _is_ip_banned(client_ip)
-    if ban_reason:
+    # ── Whitelist check (bypasses all bans and rate limits) ──
+    if _is_whitelisted(client_ip):
+        return await call_next(request)
+
+    # ── Check CIDR bans ──
+    cidr_reason = _check_cidr_bans(client_ip)
+    if cidr_reason:
+        return JSONResponse(
+            {"error": f"Acceso denegado: {cidr_reason}"},
+            status_code=403,
+        )
+
+    # ── Check IP ban ──
+    ban_reason, ban_type = _is_ip_banned(client_ip)
+    if ban_reason and ban_type == "ban":
         return JSONResponse(
             {"error": f"Acceso denegado: {ban_reason}"},
             status_code=403,
         )
 
-    # Rate limiting for API
+    # Soft ban: allow request but log violation
+    is_soft = ban_reason is not None and ban_type == "soft"
+
+    # ── Rate limiting for API ──
     if path.startswith("/api/"):
         if not _check_rpm(client_ip):
-            _record_rpm_violation(client_ip)
-            return JSONResponse(
-                {"error": "Demasiadas peticiones. Intenta de nuevo en un minuto."},
-                status_code=429,
-            )
+            _record_rpm_violation(client_ip, soft_mode=is_soft)
+            if not is_soft:
+                return JSONResponse(
+                    {"error": "Demasiadas peticiones. Intenta de nuevo en un minuto."},
+                    status_code=429,
+                )
 
         # Body size check for POST/PUT/DELETE
         if request.method in ("POST", "PUT", "DELETE"):
@@ -756,7 +973,7 @@ async def admin_stats(request: Request):
 
 
 # ── Admin IP Ban Management ───────────────────────
-BAN_ENABLED = True  # Set False to disable IP blocking entirely
+BAN_ENABLED = True
 
 
 @app.get("/api/admin/bans")
@@ -769,33 +986,62 @@ async def list_bans(request: Request):
     now = time.time()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
-            "SELECT ip, banned_at, reason, auto_ban, expires_at "
-            "FROM banned_ips WHERE expires_at IS NULL OR expires_at > $1 "
+            "SELECT ip, banned_at, reason, auto_ban, expires_at, ban_type, offense_count "
+            "FROM banned_ips WHERE ban_type IN ('ban', 'soft') "
+            "AND (expires_at IS NULL OR expires_at > $1) "
             "ORDER BY banned_at DESC",
             now,
         )
     bans = []
     for row in rows:
         expires = row["expires_at"]
+        btype = row["ban_type"]
+        offense = row["offense_count"]
         bans.append({
             "ip": row["ip"],
             "banned_at": row["banned_at"],
             "reason": row["reason"],
             "auto_ban": row["auto_ban"],
+            "ban_type": btype,
+            "offense_count": offense,
+            "progressive_label": _get_progressive_label(offense) if btype == "soft" or row["auto_ban"] else None,
             "expires_in": max(0, int(expires - now)) if expires else None,
         })
+    # Also get CIDR bans for the response
+    async with pool.acquire() as conn:
+        crows = await conn.fetch("SELECT cidr, banned_at, reason, auto_ban FROM cidr_bans ORDER BY banned_at DESC")
+    cidr_bans = [{
+        "cidr": r["cidr"],
+        "banned_at": r["banned_at"],
+        "reason": r["reason"],
+        "auto_ban": r["auto_ban"],
+    } for r in crows]
+    # Whitelist
+    async with pool.acquire() as conn:
+        wrows = await conn.fetch("SELECT ip_cidr, note, created_at FROM whitelisted_ips ORDER BY created_at DESC")
+    whitelist = [{
+        "ip_cidr": r["ip_cidr"],
+        "note": r["note"],
+        "created_at": r["created_at"],
+    } for r in wrows]
     return {
         "bans": bans,
+        "cidr_bans": cidr_bans,
+        "whitelist": whitelist,
         "total": len(bans),
         "auto_ban_enabled": True,
         "auto_ban_threshold": AUTO_BAN_THRESHOLD,
         "auto_ban_duration_h": AUTO_BAN_DURATION // 3600,
+        "progressive_increments": PROGRESSIVE_INCREMENTS,
+        "progressive_labels": PROGRESSIVE_LABELS,
     }
 
 
 @app.post("/api/admin/bans")
 async def ban_ip_endpoint(request: Request):
-    """Manually ban an IP address."""
+    """Manually ban an IP address.
+    Body: { ip, reason?, duration? (seconds, 0=permanent), ban_type? ('ban'|'soft') }
+    """
     auth_error = _admin_required(request)
     if auth_error:
         return auth_error
@@ -809,6 +1055,11 @@ async def ban_ip_endpoint(request: Request):
         return JSONResponse({"error": "IP requerida"}, status_code=400)
 
     reason = body.get("reason", "Baneado manualmente por administrador")
+    duration = body.get("duration")  # seconds, None=progressive default, 0=permanent
+    ban_type = body.get("ban_type", "ban")  # 'ban' or 'soft'
+
+    if ban_type not in ("ban", "soft"):
+        return JSONResponse({"error": "ban_type debe ser 'ban' o 'soft'"}, status_code=400)
 
     # Validate it looks like an IP
     try:
@@ -816,11 +1067,12 @@ async def ban_ip_endpoint(request: Request):
     except ValueError:
         return JSONResponse({"error": "Dirección IP inválida"}, status_code=400)
 
-    if _is_ip_banned(ip):
+    ban_reason, existing_type = _is_ip_banned(ip)
+    if ban_reason and existing_type == "ban":
         return JSONResponse({"error": f"IP {ip} ya está bloqueada"}, status_code=409)
 
-    await _ban_ip(ip, reason=reason, auto_ban=False)
-    return {"status": "ok", "ip": ip, "reason": reason}
+    await _ban_ip(ip, reason=reason, auto_ban=False, duration=duration, ban_type=ban_type)
+    return {"status": "ok", "ip": ip, "reason": reason, "ban_type": ban_type}
 
 
 @app.delete("/api/admin/bans/{ip:path}")
@@ -846,12 +1098,124 @@ async def check_my_ip(request: Request):
     if auth_error:
         return auth_error
     client_ip = _get_client_ip(request)
-    reason = _is_ip_banned(client_ip)
+    ban_reason, ban_type = _is_ip_banned(client_ip)
+    cidr_reason = _check_cidr_bans(client_ip)
     return {
-        "banned": reason is not None,
-        "reason": reason,
+        "banned": ban_reason is not None and ban_type == "ban",
+        "reason": ban_reason,
+        "ban_type": ban_type,
+        "cidr_banned": cidr_reason is not None,
+        "cidr_reason": cidr_reason,
+        "whitelisted": _is_whitelisted(client_ip),
         "your_ip": client_ip,
     }
+
+
+# ── CIDR Ban Management ────────────────────────────
+
+@app.get("/api/admin/bans/cidr")
+async def list_cidr_bans(request: Request):
+    """List all CIDR bans."""
+    auth_error = _admin_required(request)
+    if auth_error:
+        return auth_error
+    assert pool
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("SELECT cidr, banned_at, reason, auto_ban FROM cidr_bans ORDER BY banned_at DESC")
+    return {"cidr_bans": [dict(r) for r in rows], "total": len(rows)}
+
+
+@app.post("/api/admin/bans/cidr")
+async def ban_cidr_endpoint(request: Request):
+    """Ban an entire subnet (CIDR notation)."""
+    auth_error = _admin_required(request)
+    if auth_error:
+        return auth_error
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Invalid JSON"}, status_code=400)
+    cidr = body.get("cidr", "").strip()
+    if not cidr:
+        return JSONResponse({"error": "CIDR requerido (ej: 10.0.0.0/24)"}, status_code=400)
+    try:
+        ipaddress.ip_network(cidr, strict=False)
+    except ValueError:
+        return JSONResponse({"error": "CIDR inválido"}, status_code=400)
+    reason = body.get("reason", "CIDR bloqueado por administrador")
+    result = await _ban_cidr(cidr, reason=reason)
+    return {"status": "ok", **result}
+
+
+@app.delete("/api/admin/bans/cidr/{cidr:path}")
+async def unban_cidr_endpoint(request: Request, cidr: str):
+    """Remove a CIDR ban."""
+    auth_error = _admin_required(request)
+    if auth_error:
+        return auth_error
+    # cidr comes URL-encoded
+    cidr = urllib.parse.unquote(cidr)
+    try:
+        ipaddress.ip_network(cidr, strict=False)
+    except ValueError:
+        return JSONResponse({"error": "CIDR inválido"}, status_code=400)
+    if await _unban_cidr(cidr):
+        return {"status": "ok", "cidr": cidr, "message": "CIDR desbloqueado"}
+    return JSONResponse({"error": f"CIDR {cidr} no está bloqueado"}, status_code=404)
+
+
+# ── Whitelist Management ──────────────────────────
+
+@app.get("/api/admin/whitelist")
+async def list_whitelist(request: Request):
+    """List all whitelisted IPs/CIDRs."""
+    auth_error = _admin_required(request)
+    if auth_error:
+        return auth_error
+    assert pool
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("SELECT ip_cidr, note, created_at FROM whitelisted_ips ORDER BY created_at DESC")
+    return {"whitelist": [dict(r) for r in rows], "total": len(rows)}
+
+
+@app.post("/api/admin/whitelist")
+async def add_whitelist_endpoint(request: Request):
+    """Add an IP or CIDR to the whitelist (bypasses bans and rate limits)."""
+    auth_error = _admin_required(request)
+    if auth_error:
+        return auth_error
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Invalid JSON"}, status_code=400)
+    ip_cidr = body.get("ip_cidr", "").strip()
+    if not ip_cidr:
+        return JSONResponse({"error": "IP o CIDR requerido"}, status_code=400)
+    # Validate
+    try:
+        if "/" in ip_cidr:
+            ipaddress.ip_network(ip_cidr, strict=False)
+        else:
+            ipaddress.ip_address(ip_cidr)
+    except ValueError:
+        return JSONResponse({"error": "Dirección IP o CIDR inválido"}, status_code=400)
+    note = body.get("note", "")
+    added = await _add_whitelist(ip_cidr, note=note)
+    if added:
+        return {"status": "ok", "ip_cidr": ip_cidr, "note": note}
+    return JSONResponse({"error": f"{ip_cidr} ya está en la whitelist"}, status_code=409)
+
+
+@app.delete("/api/admin/whitelist/{ip_cidr:path}")
+async def remove_whitelist_endpoint(request: Request, ip_cidr: str):
+    """Remove an IP/CIDR from the whitelist."""
+    auth_error = _admin_required(request)
+    if auth_error:
+        return auth_error
+    ip_cidr = urllib.parse.unquote(ip_cidr)
+    if await _remove_whitelist(ip_cidr):
+        return {"status": "ok", "ip_cidr": ip_cidr, "message": "Eliminado de whitelist"}
+    return JSONResponse({"error": f"{ip_cidr} no está en whitelist"}, status_code=404)
 
 
 # ── WebSocket ──────────────────────────────────────
