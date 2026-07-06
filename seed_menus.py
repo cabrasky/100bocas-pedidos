@@ -164,7 +164,7 @@ CATEGORY_ICONS = {
 
 # Prices for different menus
 PRICES = {
-    "euromania": {
+    "100bocas": {
         "casa": "1€", "clasicos": "1€", "imprescindibles": "1€", "especiales": "1€",
         "montycookie": "1€", "montydinas": "1€", "montyperros": "1€", "montyburgers": "1€",
         "montypizzas": "1€", "montygourmet": "1€", "aperitivos": "1€", "postres": "1€",
@@ -223,7 +223,7 @@ async def seed():
                     )
         
         # Ensure only one active
-        await conn.execute("UPDATE menu_configs SET is_active = (slug = 'euromania')")
+        await conn.execute("UPDATE menu_configs SET is_active = (slug = '100bocas')")
     
     await pool.close()
     print("✅ Seeded 3 menu configs with all items")
