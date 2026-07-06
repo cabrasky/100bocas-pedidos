@@ -30,7 +30,7 @@ function PersonBar({ persons, myName, currentPersonIdx, onSelectPerson, onDelete
                 className="p-del"
                 onClick={(e) => { e.stopPropagation(); onDeletePerson(i); }}
                 title="Eliminar"
-              >✕</span>
+              ></span>
             )}
           </button>
         );
