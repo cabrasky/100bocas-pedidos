@@ -1,29 +1,49 @@
-# Python
-venv/
+# ── Python ──────────────────────────────────────────────────
 __pycache__/
-*.pyc
+*.py[cod]
 *.pyo
-.env
+*.egg-info/
+dist/
+build/
+*.egg
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.whl
 
-# Node
+# ── Frontend (Node) ─────────────────────────────────────────
 frontend/node_modules/
 frontend/dist/
+frontend/build/
+frontend/.cache/
 
-# IDE
+# ── Environment ─────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+venv/
+.venv/
+virtualenv/
+
+# ── IDE / Editor ───────────────────────────────────────────
 .vscode/
 .idea/
 *.swp
 *.swo
+*~
+*.iml
+.vs/
 
-# OS
+# ── OS ──────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
+Desktop.ini
 
-# Runtime
+# ── Runtime / Data ──────────────────────────────────────────
 *.pid
 *.log
+*.db
 banned_ips.json
 
-# Project specific
-*.db
-dist/
+# ── Docker ──────────────────────────────────────────────────
+docker-compose.override.yml
