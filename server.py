@@ -1075,21 +1075,7 @@ async def ban_ip_endpoint(request: Request):
     return {"status": "ok", "ip": ip, "reason": reason, "ban_type": ban_type}
 
 
-@app.delete("/api/admin/bans/{ip:path}")
-async def unban_ip_endpoint(request: Request, ip: str):
-    """Remove a ban from an IP."""
-    auth_error = _admin_required(request)
-    if auth_error:
-        return auth_error
-    try:
-        ip_address(ip)
-    except ValueError:
-        return JSONResponse({"error": "Dirección IP inválida"}, status_code=400)
-
-    if await _unban_ip(ip):
-        return {"status": "ok", "ip": ip, "message": "IP desbloqueada"}
-    return JSONResponse({"error": f"IP {ip} no está bloqueada"}, status_code=404)
-
+# ── CIDR Ban Management (MUST be before {ip:path} route) ──
 
 @app.get("/api/admin/bans/check")
 async def check_my_ip(request: Request):
@@ -1110,8 +1096,6 @@ async def check_my_ip(request: Request):
         "your_ip": client_ip,
     }
 
-
-# ── CIDR Ban Management ────────────────────────────
 
 @app.get("/api/admin/bans/cidr")
 async def list_cidr_bans(request: Request):
@@ -1153,7 +1137,6 @@ async def unban_cidr_endpoint(request: Request, cidr: str):
     auth_error = _admin_required(request)
     if auth_error:
         return auth_error
-    # cidr comes URL-encoded
     cidr = urllib.parse.unquote(cidr)
     try:
         ipaddress.ip_network(cidr, strict=False)
@@ -1162,6 +1145,25 @@ async def unban_cidr_endpoint(request: Request, cidr: str):
     if await _unban_cidr(cidr):
         return {"status": "ok", "cidr": cidr, "message": "CIDR desbloqueado"}
     return JSONResponse({"error": f"CIDR {cidr} no está bloqueado"}, status_code=404)
+
+
+# ── IP Unban (uses {ip:path}, must be LAST under /bans/) ──
+
+@app.delete("/api/admin/bans/{ip:path}")
+async def unban_ip_endpoint(request: Request, ip: str):
+    """Remove a ban from an IP."""
+    auth_error = _admin_required(request)
+    if auth_error:
+        return auth_error
+    if "/" in ip and not ip.count(".") >= 1:
+        return JSONResponse({"error": "Dirección IP inválida"}, status_code=400)
+    try:
+        ip_address(ip)
+    except ValueError:
+        return JSONResponse({"error": "Dirección IP inválida"}, status_code=400)
+    if await _unban_ip(ip):
+        return {"status": "ok", "ip": ip, "message": "IP desbloqueada"}
+    return JSONResponse({"error": f"IP {ip} no está bloqueada"}, status_code=404)
 
 
 # ── Whitelist Management ──────────────────────────
