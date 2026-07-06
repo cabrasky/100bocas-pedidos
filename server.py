@@ -36,7 +36,7 @@ MAX_REQUESTS_PER_MIN = int(os.getenv("BOCAS_MAX_RPM", "120"))      # API calls/I
 MAX_WS_PER_IP = int(os.getenv("BOCAS_MAX_WS_IP", "5"))             # WS connections/IP
 MAX_WS_PER_SESSION = int(os.getenv("BOCAS_MAX_WS_SESSION", "50"))  # WS connections/session
 MAX_WS_TOTAL = int(os.getenv("BOCAS_MAX_WS_TOTAL", "200"))         # Total WS limit
-MAX_BODY_SIZE = int(os.getenv("BOCAS_MAX_BODY", "10000"))          # Max JSON body bytes
+MAX_BODY_SIZE = int(os.getenv("BOCAS_MAX_BODY", "524288"))          # Max JSON body bytes
 MAX_NAME_LENGTH = int(os.getenv("BOCAS_MAX_NAME", "30"))           # Max person name length
 JOIN_RATE_LIMIT = int(os.getenv("BOCAS_JOIN_LIMIT", "10"))         # Max failed joins/min
 WS_RECEIVE_TIMEOUT = int(os.getenv("BOCAS_WS_TIMEOUT", "300"))     # WS idle timeout (5 min)
@@ -1049,6 +1049,125 @@ async def admin_activate_menu(request: Request, menu_id: int):
     return {"status": "ok", "menu_id": menu_id}
 
 
+
+@app.get("/api/admin/menus/export")
+async def admin_export_menus(request: Request):
+    """Export all menus with categories, items, and schedules as JSON."""
+    auth_error = _admin_required(request)
+    if auth_error:
+        return auth_error
+    assert pool
+    async with pool.acquire() as conn:
+        # Get all menu IDs with their basic info
+        rows = await conn.fetch(
+            "SELECT id, name, slug, description, is_active FROM menu_configs ORDER BY id"
+        )
+        result = []
+        for row in rows:
+            # Get categories
+            cats = await conn.fetch(
+                "SELECT id, key, label, icon, sort_order FROM menu_categories WHERE menu_id = $1 ORDER BY sort_order, id",
+                row["id"],
+            )
+            categories = []
+            for c in cats:
+                items = await conn.fetch(
+                    "SELECT code, name, ingredients, price, sort_order FROM menu_items WHERE category_id = $1 ORDER BY sort_order, id",
+                    c["id"],
+                )
+                categories.append({
+                    "key": c["key"],
+                    "label": c["label"],
+                    "icon": c["icon"],
+                    "sort_order": c["sort_order"],
+                    "items": [{
+                        "code": i["code"] or "",
+                        "name": i["name"],
+                        "ingredients": i["ingredients"] or "",
+                        "price": i["price"] or "",
+                        "sort_order": i["sort_order"],
+                    } for i in items],
+                })
+            # Get schedules
+            scheds = await conn.fetch(
+                "SELECT day_of_week FROM menu_schedules WHERE menu_id = $1 ORDER BY day_of_week",
+                row["id"],
+            )
+            result.append({
+                "name": row["name"],
+                "slug": row["slug"],
+                "description": row["description"],
+                "is_active": row["is_active"],
+                "categories": categories,
+                "schedules": [s["day_of_week"] for s in scheds],
+            })
+    return JSONResponse(result)
+
+
+@app.post("/api/admin/menus/import")
+async def admin_import_menus(request: Request):
+    """Import menus from a JSON array."""
+    auth_error = _admin_required(request)
+    if auth_error:
+        return auth_error
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Invalid JSON"}, status_code=400)
+    if not isinstance(body, list):
+        return JSONResponse({"error": "Expected a JSON array of menus"}, status_code=400)
+    assert pool
+    imported = 0
+    async with pool.acquire() as conn:
+        for menu_data in body:
+            name = (menu_data.get("name") or "").strip()
+            slug_raw = (menu_data.get("slug") or "").strip().lower().replace(" ", "-")
+            if not name or not slug_raw:
+                continue
+            desc = (menu_data.get("description") or "").strip()
+            # Generate unique slug if exists
+            slug = slug_raw
+            existing = await conn.fetchval(
+                "SELECT id FROM menu_configs WHERE slug = $1", slug
+            )
+            suffix = 1
+            while existing:
+                slug = f"{slug_raw}-{suffix}"
+                existing = await conn.fetchval(
+                    "SELECT id FROM menu_configs WHERE slug = $1", slug
+                )
+                suffix += 1
+            new_id = await conn.fetchval(
+                "INSERT INTO menu_configs (name, slug, description, is_active) VALUES ($1, $2, $3, $4) RETURNING id",
+                name, slug, desc, bool(menu_data.get("is_active", False)),
+            )
+            # Import categories
+            for cat in menu_data.get("categories") or []:
+                cat_id = await conn.fetchval(
+                    "INSERT INTO menu_categories (menu_id, key, label, icon, sort_order) VALUES ($1, $2, $3, $4, $5) RETURNING id",
+                    new_id, cat.get("key", ""), cat.get("label", ""),
+                    cat.get("icon", "fa-list"), cat.get("sort_order", 0),
+                )
+                # Import items
+                for item in cat.get("items") or []:
+                    await conn.execute(
+                        "INSERT INTO menu_items (category_id, code, name, ingredients, price, sort_order) VALUES ($1, $2, $3, $4, $5, $6)",
+                        cat_id, item.get("code", ""), item.get("name", ""),
+                        item.get("ingredients", ""), item.get("price", ""),
+                        item.get("sort_order", 0),
+                    )
+            # Import schedules
+            for day in menu_data.get("schedules") or []:
+                try:
+                    await conn.execute(
+                        "INSERT INTO menu_schedules (menu_id, day_of_week) VALUES ($1, $2)",
+                        new_id, int(day),
+                    )
+                except Exception:
+                    pass  # skip invalid days
+            imported += 1
+    return {"imported": imported, "message": f"{imported} carta(s) importada(s)"}
+
 @app.get("/api/admin/menus/{menu_id}")
 async def admin_get_menu(request: Request, menu_id: int):
     """Get full menu detail with categories and items."""
@@ -1141,6 +1260,7 @@ async def admin_duplicate_menu(request: Request, menu_id: int):
                     cat_id, i["code"], i["name"], i["ingredients"], i["price"], i["sort_order"],
                 )
     return {"id": new_id, "name": f"{src['name']} (copia)"}
+
 
 
 # ── Admin: Day-of-week schedule ─────────────────────

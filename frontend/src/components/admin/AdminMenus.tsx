@@ -95,6 +95,43 @@ function AdminMenus({ authHeaders, base }: Props) {
     } catch { showMsg('Error al duplicar', 'err'); }
   };
 
+  // ── Export all menus to JSON ──
+  const handleExport = async () => {
+    try {
+      const r = await fetch(`${base}/api/admin/menus/export`, { headers: authHeaders() });
+      if (!r.ok) { showMsg('Error al exportar', 'err'); return; }
+      const data = await r.json();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `cartas-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showMsg(` ${data.length} carta(s) exportadas`, 'ok');
+    } catch { showMsg('Error al exportar', 'err'); }
+  };
+
+  // ── Import menus from JSON file ──
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      if (!Array.isArray(data)) { showMsg('El JSON debe ser un array de cartas', 'err'); return; }
+      const r = await fetch(`${base}/api/admin/menus/import`, {
+        method: 'POST', headers: authHeaders(),
+        body: JSON.stringify(data),
+      });
+      const result = await r.json();
+      if (result.error) { showMsg(result.error, 'err'); }
+      else { showMsg(result.message, 'ok'); load(); }
+    } catch { showMsg('Error al importar', 'err'); }
+    // Reset input so the same file can be re-imported
+    e.target.value = '';
+  };
+
   // ── Load full menu detail ──
   const loadMenu = async (id: number) => {
     try {
@@ -209,7 +246,17 @@ function AdminMenus({ authHeaders, base }: Props) {
           </div>
 
           <div className="admin-section">
-            <h3><i className="fas fa-list"></i> Cartas configuradas</h3>
+            <h3><i className="fas fa-list"></i> Cartas configuradas
+              <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 6 }}>
+                <button className="menu-export-btn" onClick={handleExport} title="Exportar todas las cartas a JSON">
+                  <i className="fas fa-download"></i> Exportar
+                </button>
+                <button className="menu-import-btn" onClick={() => document.getElementById('import-file-input')?.click()} title="Importar cartas desde JSON">
+                  <i className="fas fa-upload"></i> Importar
+                </button>
+                <input type="file" id="import-file-input" accept=".json" style={{ display: 'none' }} onChange={handleImportFile} />
+              </span>
+            </h3>
             {loading ? (
               <div className="admin-loading"><i className="fas fa-spinner fa-spin"></i> Cargando...</div>
             ) : menus.length === 0 ? (
