@@ -247,7 +247,7 @@ if not ADMIN_PASSWORD:
     print(f"[auth] ⚠️  BOCAS_ADMIN_PASSWORD not set. Generated: {ADMIN_PASSWORD}")
     print(f"[auth] Set BOCAS_ADMIN_PASSWORD env var to use a custom password.")
 
-ADMIN_SERVER_SECRET = ''.join(random.choices(string.ascii_letters + string.digits, k=32))
+ADMIN_SERVER_SECRET = os.getenv("BOCAS_ADMIN_SERVER_SECRET", "") or ''.join(random.choices(string.ascii_letters + string.digits, k=32))
 _admin_token: str | None = None
 
 

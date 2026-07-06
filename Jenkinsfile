@@ -115,7 +115,16 @@ pipeline {
                             kustomize edit set image PLACEHOLDER_BACKEND=${BACKEND_IMAGE}:${IMAGE_TAG}
                             kustomize edit set image PLACEHOLDER_FRONTEND=${FRONTEND_IMAGE}:${IMAGE_TAG}
                         """
-                        // Apply to cluster
+                        // Create secret only if it doesn't exist — never overwrite existing
+                        sh '''
+                            if ! kubectl get secret bocas-secrets -n bocas 2>/dev/null; then
+                                echo "→ Creating bocas-secrets from base/secrets.yaml..."
+                                kubectl apply -f ../base/secrets.yaml
+                            else
+                                echo "✓ bocas-secrets already exists — keeping existing values"
+                            fi
+                        '''
+                        // Apply to cluster (kustomization no longer includes secrets.yaml)
                         sh 'kubectl apply -k overlays/production'
                     }
                 }
