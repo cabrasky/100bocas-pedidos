@@ -670,13 +670,12 @@ header .header-right {
   header { padding: 8px 12px; gap: 6px; }
   header h1 { font-size: 15px; gap: 4px; }
   header h1 i { font-size: 15px; }
-  header .header-meta { display: none; }
+  header .subtitle { display: none; }
   header .header-left { gap: 6px; }
   .code-badge { font-size: 12px; padding: 3px 10px; letter-spacing: 1px; }
   .code-badge i { display: none; }
   .header-btn { width: 28px; height: 28px; font-size: 12px; border-radius: 7px; }
   .leave-btn { padding: 4px 8px; font-size: 10px; }
-  .leave-btn span { display: none; }
 
   /* PersonBar: compact */
   .persons-bar { padding: 6px 12px; gap: 5px; }
@@ -717,16 +716,27 @@ header .header-right {
 
 /* ── MOBILE VERY SMALL (<480px) ── */
 @media (max-width: 480px) {
-  .layout { padding: 8px 8px 70px; gap: 8px; }
-  header { padding: 6px 10px; gap: 4px; }
-  header h1 { font-size: 14px; }
-  .code-badge { font-size: 11px; padding: 2px 8px; }
-  .header-btn { width: 26px; height: 26px; font-size: 11px; }
-  .menu-grid { gap: 5px; }
-  .menu-grid .menu-card { padding: 8px 8px; }
-  .menu-card .item-name { font-size: 10px; }
-  .cat-btn { padding: 4px 8px; font-size: 10px; }
+  .layout { padding: 6px 6px 90px; gap: 6px; }
+  header { padding: 5px 8px; gap: 3px; }
+  header h1 { font-size: 11px; gap: 3px; }
+  header h1 i { font-size: 12px; }
+  header .header-left { gap: 4px; }
+  .code-badge { font-size: 9px; padding: 2px 5px; letter-spacing: 0.5px; border-radius: 6px; }
+  .code-badge i { display: none; }
+  .header-btn { width: 22px; height: 22px; font-size: 9px; border-radius: 5px; }
+  header .header-btn.github { display: none; }
+  header .header-btn[title*="privacidad"] { display: none; }
+  .leave-btn { padding: 3px 5px; font-size: 9px; border-radius: 5px; }
+  .menu-grid { gap: 4px; margin-bottom: 60px; }
+  .menu-grid .menu-card { padding: 6px 6px; border-radius: 8px; }
+  .menu-card .item-name { font-size: 9px; }
+  .menu-card .item-price { font-size: 10px; margin-top: 2px; padding-top: 2px; }
+  .cat-btn { padding: 3px 6px; font-size: 9px; border-radius: 6px; }
   .cat-btn i + span { display: none; }
+  .section-title { font-size: 9px; padding: 4px 0; }
+  .persons-bar { padding: 4px 8px; gap: 3px; }
+  .person-chip { font-size: 10px; padding: 3px 8px; }
+  .mobile-fab { width: 48px; height: 48px; font-size: 18px; bottom: 16px; right: 16px; }
 }
 
 /* ── MOBILE FAB + OVERLAY (always visible, used on mobile) ── */
