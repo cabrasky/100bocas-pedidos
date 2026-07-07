@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Allow: /app
+Disallow: /api/
+Disallow: /ws/
+
+Sitemap: https://100bocas.cabrasky.net/sitemap.xml
