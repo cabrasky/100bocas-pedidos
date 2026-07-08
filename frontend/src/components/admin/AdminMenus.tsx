@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { MenuConfig, TAG_CONFIGS, getTagMeta } from '../../types';
+import { MenuConfig, TAG_CONFIGS } from '../../types';
 
 const DAY_NAMES = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 const DAY_FULL = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
@@ -17,12 +17,283 @@ interface CategoryData {
 }
 
 interface ItemData {
-  id: number; code: string; name: string; ingredients: string; price: string; tags?: string;
+  id: number; code: string; name: string; ingredients: string; price: string; tags?: string; allergens?: string;
+}
+
+interface ItemEditorState {
+  mode: 'add' | 'edit';
+  catId: number;
+  menuId: number;
+  item?: ItemData;
 }
 
 interface Props {
   authHeaders: () => Record<string, string>;
   base: string;
+}
+
+interface ItemEditorModalProps {
+  itemEditor: ItemEditorState | null;
+  authHeaders: () => Record<string, string>;
+  base: string;
+  onClose: () => void;
+  onSaved: (menuId: number) => void;
+  onMsg: (msg: string, type: 'ok' | 'err') => void;
+}
+
+const KNOWN_ALLERGENS = [
+  'huevo', 'lactosa', 'gluten', 'carne', 'pescado', 'marisco', 'miel', 'frutos_secos',
+  'soja', 'mostaza', 'apio', 'cacahuete', 'sesamo', 'sésamo', 'moluscos', 'altramuz',
+  'sulfitos', 'nata', 'queso', 'mantequilla', 'harina', 'pan',
+];
+
+const ALLERGEN_RULES: Record<string, string[]> = {
+  vegetarian: ['carne', 'pescado', 'marisco'],
+  vegan: ['carne', 'pescado', 'marisco', 'huevo', 'lactosa', 'miel', 'nata', 'queso', 'mantequilla'],
+  'gluten-free': ['gluten', 'harina', 'pan'],
+  'without-eggs': ['huevo'],
+  'without-lactose': ['lactosa', 'nata', 'queso', 'mantequilla'],
+};
+
+const QUICK_ALLERGENS = ['gluten', 'huevo', 'lactosa', 'carne', 'pescado', 'marisco'];
+
+const normalizeAllergens = (raw: string) => {
+  const normalized = raw
+    .split(/[;,\n]/)
+    .map(a => a.trim().toLowerCase())
+    .filter(Boolean)
+    .map(a => a === 'sésamo' ? 'sesamo' : a);
+
+  return Array.from(new Set(normalized));
+};
+
+function ItemEditorModal({ itemEditor, authHeaders, base, onClose, onSaved, onMsg }: ItemEditorModalProps) {
+  const [formName, setFormName] = useState('');
+  const [formCode, setFormCode] = useState('');
+  const [formPrice, setFormPrice] = useState('');
+  const [allergensVal, setAllergensVal] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [inlineError, setInlineError] = useState('');
+
+  useEffect(() => {
+    if (!itemEditor) {
+      setFormName('');
+      setFormCode('');
+      setFormPrice('');
+      setAllergensVal('');
+      return;
+    }
+
+    const item = itemEditor.item;
+    setFormName(item?.name || '');
+    setFormCode(item?.code || '');
+    setFormPrice(String(item?.price ?? ''));
+    setAllergensVal(item?.allergens || '');
+    setInlineError('');
+    setSaving(false);
+  }, [itemEditor]);
+
+  if (!itemEditor) return null;
+
+  const isEdit = itemEditor.mode === 'edit';
+  const editingItem = itemEditor.item;
+  const normalizedAllergens = normalizeAllergens(allergensVal);
+  const allergenSet = new Set(normalizedAllergens);
+  const unknownAllergens = normalizedAllergens.filter(a => !KNOWN_ALLERGENS.includes(a));
+  const price = parseFloat(formPrice.replace(',', '.'));
+  const hasPriceError = formPrice.trim() !== '' && (Number.isNaN(price) || price < 0);
+
+  const toggleAllergen = (allergen: string) => {
+    const next = allergenSet.has(allergen)
+      ? normalizedAllergens.filter(a => a !== allergen)
+      : [...normalizedAllergens, allergen];
+    setAllergensVal(next.join(', '));
+  };
+
+  const handleNormalizeAllergens = () => {
+    setAllergensVal(normalizedAllergens.join(', '));
+  };
+
+  const handleSave = async () => {
+    if (saving) return;
+    if (!formName.trim()) {
+      setInlineError('El nombre es obligatorio.');
+      return;
+    }
+    if (hasPriceError) {
+      setInlineError('El precio debe ser un número válido mayor o igual que 0.');
+      return;
+    }
+
+    setInlineError('');
+    setSaving(true);
+    const payload = {
+      name: formName.trim(),
+      code: formCode.trim(),
+      price: Number.isNaN(price) ? 0 : price,
+      tags: '',
+      allergens: normalizedAllergens.join(','),
+    };
+
+    try {
+      if (isEdit && editingItem) {
+        const r = await fetch(`${base}/api/admin/items/${editingItem.id}`, {
+          method: 'PUT', headers: authHeaders(),
+          body: JSON.stringify(payload),
+        });
+        const data = await r.json();
+        if (data.error) { onMsg(data.error, 'err'); return; }
+        onMsg('Producto actualizado', 'ok');
+      } else {
+        const r = await fetch(`${base}/api/admin/categories/${itemEditor.catId}/items`, {
+          method: 'POST', headers: authHeaders(),
+          body: JSON.stringify(payload),
+        });
+        const data = await r.json();
+        if (data.error) { onMsg(data.error, 'err'); return; }
+        onMsg('Producto añadido', 'ok');
+      }
+      onSaved(itemEditor.menuId);
+    } catch {
+      onMsg('Error al guardar', 'err');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="admin-overlay-simple" onClick={onClose}>
+      <div className="admin-modal-small item-editor-modal" onClick={e => e.stopPropagation()}>
+        <div className="item-editor-header">
+          <div className="item-editor-title-wrap">
+            <span className="item-editor-title-icon"><i className="fas fa-utensils"></i></span>
+            <div>
+              <h3 className="item-editor-title">{isEdit ? 'Editar producto' : 'Nuevo producto'}</h3>
+              <p className="item-editor-subtitle">Completa el producto y guarda con Ctrl+Enter</p>
+            </div>
+          </div>
+          <button className="item-editor-close" onClick={onClose} type="button" aria-label="Cerrar editor">
+            <i className="fas fa-xmark"></i>
+          </button>
+        </div>
+        <form
+          className="tag-selector-body item-editor-body"
+          onSubmit={(e) => { e.preventDefault(); void handleSave(); }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+              e.preventDefault();
+              void handleSave();
+            }
+          }}
+        >
+          <label className="item-editor-label">Nombre *</label>
+          <input
+            type="text"
+            className="menu-input"
+            placeholder="Nombre del producto"
+            value={formName}
+            onChange={e => setFormName(e.target.value)}
+            autoFocus
+          />
+
+          <div className="item-editor-row">
+            <div className="item-editor-col">
+              <label className="item-editor-label">Código</label>
+              <input
+                type="text"
+                className="menu-input"
+                placeholder="ej: 01"
+                value={formCode}
+                onChange={e => setFormCode(e.target.value)}
+              />
+            </div>
+            <div className="item-editor-col">
+              <label className="item-editor-label">Precio (€)</label>
+              <input
+                type="text"
+                className={`menu-input ${hasPriceError ? 'menu-input-error' : ''}`}
+                placeholder="ej: 1.50"
+                value={formPrice}
+                onChange={e => setFormPrice(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <label className="item-editor-label">
+            Alérgenos <span className="item-editor-label-muted">(separados por coma)</span>
+          </label>
+          <input
+            type="text"
+            className="menu-input"
+            placeholder="ej: huevo, lactosa, gluten"
+            value={allergensVal}
+            onChange={e => setAllergensVal(e.target.value)}
+            onBlur={handleNormalizeAllergens}
+          />
+
+          <div className="item-editor-quick-allergens">
+            {QUICK_ALLERGENS.map(a => {
+              const active = allergenSet.has(a);
+              return (
+                <button
+                  key={a}
+                  type="button"
+                  className={`item-editor-quick-pill ${active ? 'active' : ''}`}
+                  onClick={() => toggleAllergen(a)}
+                >
+                  {active ? '✓ ' : ''}{a}
+                </button>
+              );
+            })}
+          </div>
+
+          {unknownAllergens.length > 0 && (
+            <p className="item-editor-hint item-editor-hint-warning">
+              Alérgenos no reconocidos: {unknownAllergens.join(', ')}
+            </p>
+          )}
+
+          <p className="item-editor-hint">
+            Códigos válidos: {KNOWN_ALLERGENS.filter(a => a !== 'sésamo').join(', ')}
+          </p>
+
+          <p className="item-editor-label">Etiquetas calculadas automáticamente:</p>
+          <div className="item-editor-tags">
+            {TAG_CONFIGS.map(t => {
+              const exclusions = ALLERGEN_RULES[t.key] || [];
+              const excluded = exclusions.some(a => allergenSet.has(a));
+              const active = !excluded;
+              return (
+                <span key={t.key} className={`item-editor-tag-pill ${active ? 'on' : 'off'}`}
+                  style={{
+                    opacity: active ? 1 : 0.4,
+                    background: active ? t.bg : '#1e293b',
+                    color: active ? t.color : '#64748b',
+                    border: active ? `2px solid ${t.color}` : '2px solid #334155',
+                  }}
+                >
+                  <i className={`fas ${t.icon}`}></i> {t.label}
+                  {!active && <i className="fas fa-ban" style={{ marginLeft: 4, fontSize: 9 }}></i>}
+                </span>
+              );
+            })}
+          </div>
+
+          {inlineError && <p className="item-editor-error">{inlineError}</p>}
+
+          <div className="tag-selector-actions">
+            <button className="menu-cancel-btn" onClick={onClose} type="button">
+              Cancelar
+            </button>
+            <button className="menu-save-btn" type="submit" disabled={!formName.trim() || hasPriceError || saving}>
+              <i className={`fas ${saving ? 'fa-spinner fa-spin' : 'fa-check'}`}></i>
+              {saving ? 'Guardando...' : isEdit ? 'Guardar cambios' : 'Crear producto'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
 }
 
 function AdminMenus({ authHeaders, base }: Props) {
@@ -35,7 +306,7 @@ function AdminMenus({ authHeaders, base }: Props) {
   const [newDesc, setNewDesc] = useState('');
   const [editingMenu, setEditingMenu] = useState<MenuDetail | null>(null);
   const [schMsg, setSchMsg] = useState('');
-  const [tagSelector, setTagSelector] = useState<{ item?: ItemData; catId: number; menuId: number; mode: 'add' | 'edit' } | null>(null);
+  const [itemEditor, setItemEditor] = useState<ItemEditorState | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -183,25 +454,13 @@ function AdminMenus({ authHeaders, base }: Props) {
     } catch { showMsg('Error', 'err'); }
   };
 
-  // ── Item CRUD ──
-  const handleAddItem = async (catId: number, menuId: number) => {
-    const name = prompt('Nombre del producto:');
-    if (!name?.trim()) return;
-    const code = prompt('Código (opcional, ej: 01):') || '';
-    const priceStr = prompt('Precio (opcional, ej: 1.50):') || '0';
-    const price = parseFloat(priceStr.replace(',', '.')) || 0;
-    setTagSelector({ catId, menuId, mode: 'add' });
-    // Tags selected via modal
+  // ── Item CRUD (modal-based) ──
+  const handleAddItem = (catId: number, menuId: number) => {
+    setItemEditor({ mode: 'add', catId, menuId });
   };
 
-  const handleEditItem = async (item: ItemData & { tags?: string }, catId: number, menuId: number) => {
-    const name = prompt('Nombre:', item.name);
-    if (!name?.trim()) return;
-    const code = prompt('Código:', item.code) || '';
-    const priceStr = prompt('Precio:', String(item.price ?? 0)) || '0';
-    const price = parseFloat(priceStr.replace(',', '.')) || 0;
-    setTagSelector({ item, catId, menuId, mode: 'edit' });
-    // Tags selected via modal
+  const handleEditItem = (item: ItemData, catId: number, menuId: number) => {
+    setItemEditor({ mode: 'edit', catId, menuId, item });
   };
 
   const handleDeleteItem = async (itemId: number, itemName: string, menuId: number) => {
@@ -213,105 +472,21 @@ function AdminMenus({ authHeaders, base }: Props) {
     } catch { showMsg('Error', 'err'); }
   };
 
-
-  // ── Tag Selector Modal ──
-  const handleSaveWithTags = async (tags: string[]) => {
-    const sel = tagSelector;
-    if (!sel) return;
-    const tagsStr = tags.join(',');
-    const item = sel.item;
-    if (sel.mode === 'add') {
-      const name = prompt('Confirma nombre:');
-      if (!name?.trim()) { setTagSelector(null); return; }
-      const code = prompt('Código (opcional):') || '';
-      const priceStr = prompt('Precio:', '1') || '0';
-      const price = parseFloat(priceStr.replace(',', '.')) || 0;
-      try {
-        const r = await fetch(`${base}/api/admin/categories/${sel.catId}/items`, {
-          method: 'POST', headers: authHeaders(),
-          body: JSON.stringify({ name: name.trim(), code, price, tags: tagsStr }),
-        });
-        const data = await r.json();
-        if (data.error) showMsg(data.error, 'err');
-        else { showMsg(' Producto añadido', 'ok'); loadMenu(sel.menuId); }
-      } catch { showMsg('Error', 'err'); }
-    } else if (item) {
-      try {
-        await fetch(`${base}/api/admin/items/${item.id}`, {
-          method: 'PUT', headers: authHeaders(),
-          body: JSON.stringify({ name: item.name, code: item.code, price: item.price, tags: tagsStr }),
-        });
-        showMsg(' Producto actualizado', 'ok');
-        loadMenu(sel.menuId);
-      } catch { showMsg('Error', 'err'); }
-    }
-    setTagSelector(null);
-  };
-
-  // ── Render Tag Selector Modal ──
-  const renderTagSelector = () => {
-    if (!tagSelector) return null;
-    const current = tagSelector.item?.tags ? tagSelector.item.tags.split(',').filter(Boolean) : [];
-    const [selected, setSelected] = useState<string[]>(current);
-
-    return (
-      <div className="admin-overlay-simple" onClick={() => setTagSelector(null)}>
-        <div className="admin-modal-small" onClick={e => e.stopPropagation()}>
-          <div className="admin-header">
-            <i className="fas fa-tags"></i>
-            <h3>Seleccionar etiquetas</h3>
-            <button className="admin-close" onClick={() => setTagSelector(null)}>
-              <i className="fas fa-xmark"></i>
-            </button>
-          </div>
-          <div className="tag-selector-body">
-            <p style={{ fontSize: '0.8125rem', color: '#94a3b8', marginBottom: 12 }}>
-              Selecciona las etiquetas para este producto:
-            </p>
-            <div className="tag-grid">
-              {TAG_CONFIGS.map(t => {
-                const isOn = selected.includes(t.key);
-                return (
-                  <button
-                    key={t.key}
-                    className={`tag-pill ${isOn ? 'on' : 'off'}`}
-                    style={{
-                      background: isOn ? t.bg : '#1e293b',
-                      color: isOn ? t.color : '#64748b',
-                      border: isOn ? `2px solid ${t.color}` : '2px solid #334155',
-                    }}
-                    onClick={() => {
-                      if (isOn) setSelected(selected.filter(s => s !== t.key));
-                      else setSelected([...selected, t.key]);
-                    }}
-                  >
-                    <i className={`fas ${t.icon}`}></i> {t.label}
-                  </button>
-                );
-              })}
-            </div>
-            <div className="tag-selector-actions">
-              <button className="menu-cancel-btn" onClick={() => setTagSelector(null)}>
-                Cancelar
-              </button>
-              <button
-                className="menu-save-btn"
-                onClick={() => handleSaveWithTags(selected)}
-              >
-                <i className="fas fa-check"></i> {tagSelector.mode === 'add' ? 'Crear producto' : 'Guardar cambios'}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   // ── Render ──
   return (
     <div className="admin-menus">
       {msg && <div className={`ban-msg ${msgType === 'ok' ? 'ban-msg-ok' : 'ban-msg-err'}`} style={{ marginBottom: 12 }}>{msg}</div>}
-      {renderTagSelector()}
+      <ItemEditorModal
+        itemEditor={itemEditor}
+        authHeaders={authHeaders}
+        base={base}
+        onClose={() => setItemEditor(null)}
+        onSaved={(menuId) => {
+          setItemEditor(null);
+          loadMenu(menuId);
+        }}
+        onMsg={showMsg}
+      />
 
       {/* ── List View ── */}
       {!editingMenu && (
@@ -435,17 +610,13 @@ function DetailView({ menu, authHeaders, base, onBack, onRefresh, onActivate, on
   const scheduledDays = menu.schedules.map(s => s.day);
 
   return (
-    <div>
+    <div className="menu-detail-view">
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
-        <button className="menu-back-btn" onClick={onBack} style={{
-          background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 10,
-          padding: '8px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 600,
-          fontFamily: 'inherit', color: '#475569', display: 'flex', alignItems: 'center', gap: 6,
-        }}>
+        <button className="menu-back-btn" onClick={onBack}>
           <i className="fas fa-arrow-left"></i> Volver
         </button>
-        <h3 style={{ flex: 1, fontSize: 18, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
+        <h3 style={{ flex: 1, fontSize: 18, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, color: '#f1f5f9' }}>
           {menu.name}
           {menu.is_active && <span className="menu-active-label">Activa</span>}
           {!menu.is_active && (
@@ -469,8 +640,8 @@ function DetailView({ menu, authHeaders, base, onBack, onRefresh, onActivate, on
             return (
               <button key={i} onClick={() => onSetSchedule(menu.id, i, !active)}
                 style={{
-                  padding: '6px 12px', borderRadius: 8, border: active ? '2px solid #059669' : '1.5px solid #e2e8f0',
-                  background: active ? '#f0fdf4' : '#fff', color: active ? '#065f46' : '#64748b',
+                  padding: '6px 12px', borderRadius: 8, border: active ? '2px solid #10b981' : '1.5px solid #334155',
+                  background: active ? '#064e3b' : '#0f172a', color: active ? '#6ee7b7' : '#94a3b8',
                   fontWeight: 700, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit',
                   transition: 'all .15s',
                 }}>
@@ -501,20 +672,20 @@ function DetailView({ menu, authHeaders, base, onBack, onRefresh, onActivate, on
               </span>
               {menu.categories.map(c => (
                 <span key={c.id} style={{
-                  background: '#f1f5f9', padding: '3px 8px', borderRadius: 6, fontSize: 11,
-                  color: '#475569', display: 'inline-flex', alignItems: 'center', gap: 4,
+                  background: '#1e293b', padding: '3px 8px', borderRadius: 6, fontSize: 11,
+                  color: '#cbd5e1', border: '1px solid #334155', display: 'inline-flex', alignItems: 'center', gap: 4,
                 }}>
                   <i className={`fas ${c.icon}`} style={{ fontSize: 9 }}></i> {c.label}
                   <span style={{ color: '#94a3b8', fontSize: 10 }}>({c.items.length})</span>
                   <button onClick={() => onDeleteCategory(c.id, menu.id)}
                     style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: 10, padding: 0 }}>
-                    
+
                   </button>
                 </span>
               ))}
               <button onClick={() => onAddCategory(menu.id)} style={{
                 background: 'none', border: '1px dashed #94a3b8', borderRadius: 6, padding: '3px 8px',
-                fontSize: 11, color: '#64748b', cursor: 'pointer', fontFamily: 'inherit',
+                fontSize: 11, color: '#cbd5e1', cursor: 'pointer', fontFamily: 'inherit',
               }}>
                 <i className="fas fa-plus"></i> Añadir
               </button>
@@ -522,14 +693,14 @@ function DetailView({ menu, authHeaders, base, onBack, onRefresh, onActivate, on
 
             {/* Items per category */}
             {menu.categories.map(c => (
-              <div key={c.id} style={{ marginBottom: 12, border: '1px solid #e2e8f0', borderRadius: 10, padding: 12, background: '#fafafa' }}>
+              <div key={c.id} style={{ marginBottom: 12, border: '1px solid #334155', borderRadius: 10, padding: 12, background: '#111827' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
                   <i className={`fas ${c.icon}`} style={{ color: '#059669', fontSize: 12 }}></i>
-                  <strong style={{ fontSize: 13 }}>{c.label}</strong>
+                  <strong style={{ fontSize: 13, color: '#e2e8f0' }}>{c.label}</strong>
                   <span style={{ fontSize: 10, color: '#94a3b8' }}>key: {c.key}</span>
                   <button onClick={() => onAddItem(c.id, menu.id)} style={{
-                    marginLeft: 'auto', background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 6,
-                    padding: '3px 10px', fontSize: 11, fontWeight: 600, color: '#059669', cursor: 'pointer', fontFamily: 'inherit',
+                    marginLeft: 'auto', background: '#064e3b', border: '1px solid #10b981', borderRadius: 6,
+                    padding: '3px 10px', fontSize: 11, fontWeight: 600, color: '#6ee7b7', cursor: 'pointer', fontFamily: 'inherit',
                   }}>
                     <i className="fas fa-plus"></i> Producto
                   </button>
@@ -542,14 +713,14 @@ function DetailView({ menu, authHeaders, base, onBack, onRefresh, onActivate, on
                     {c.items.map(i => (
                       <div key={i.id} style={{
                         display: 'flex', alignItems: 'center', gap: 8, padding: '5px 8px',
-                        background: '#fff', borderRadius: 6, border: '1px solid #f1f5f9',
-                        fontSize: 12,
+                        background: '#0f172a', borderRadius: 6, border: '1px solid #1e293b',
+                        fontSize: 12, color: '#cbd5e1',
                       }}>
                         {i.code && <span style={{ color: '#94a3b8', fontWeight: 700, fontSize: 10 }}>#{i.code}</span>}
-                        <span style={{ flex: 1, fontWeight: 600 }}>{i.name}</span>
-                        {(i as any).tags && <span style={{ fontSize: 9, color: '#6b7280' }}>{(i as any).tags}</span>}
+                        <span style={{ flex: 1, fontWeight: 600, color: '#e2e8f0' }}>{i.name}</span>
+                        {(i as any).allergens && <span style={{ fontSize: 9, color: '#f87171', fontStyle: 'italic' }}>{(i as any).allergens}</span>}
                         {i.ingredients && <span style={{ color: '#94a3b8', fontSize: 10 }}>{i.ingredients}</span>}
-                        <span style={{ fontWeight: 700, color: '#059669' }}>{i.price}</span>
+                        <span style={{ fontWeight: 700, color: '#34d399' }}>{i.price}</span>
                         <button onClick={() => onEditItem(i, c.id, menu.id)} style={{
                           background: 'none', border: 'none', color: '#3b82f6', cursor: 'pointer', fontSize: 11,
                         }}>
@@ -572,18 +743,5 @@ function DetailView({ menu, authHeaders, base, onBack, onRefresh, onActivate, on
     </div>
   );
 }
-
-// Add duplicate button CSS
-const dupStyle = document.createElement('style');
-dupStyle.textContent = `
-  .menu-duplicate-btn {
-    background: none; border: 1px solid #e2e8f0; border-radius: 8px;
-    width: 32px; height: 32px; cursor: pointer; font-size: 13px;
-    color: #3b82f6; display: flex; align-items: center; justify-content: center;
-    transition: all .15s;
-  }
-  .menu-duplicate-btn:hover { background: #eff6ff; border-color: #93c5fd; }
-`;
-document.head.appendChild(dupStyle);
 
 export default AdminMenus;

@@ -17,7 +17,7 @@ export interface ApiMenuCategory {
   items: ApiMenuItem[];
 }
 export interface ApiMenuItem {
-  id: number; code: string; name: string; ingredients: string; price: string; tags: string;
+  id: number; code: string; name: string; ingredients: string; price: string; tags: string; allergens: string;
 }
 export interface ApiActiveMenu {
   id: number; name: string; slug: string; description: string;
