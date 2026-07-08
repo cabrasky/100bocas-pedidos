@@ -20,6 +20,8 @@ function LoginScreen({ onLogin }: Props) {
     }
   }, []);
 
+  const hasCode = code.trim().length >= 4;
+
   const handleCreate = async () => {
     if (!name.trim()) { setError('Escribe tu nombre'); return; }
     setError('');
@@ -34,15 +36,20 @@ function LoginScreen({ onLogin }: Props) {
 
   const handleJoin = async () => {
     if (!name.trim()) { setError('Escribe tu nombre'); return; }
-    if (!code.trim() || code.trim().length < 4) { setError('Codigo invalido'); return; }
+    if (!code.trim() || code.trim().length < 4) { setError('Código inválido'); return; }
     setError('');
     setBusy(true);
     try {
       await onLogin(name.trim(), code.trim().toUpperCase());
     } catch (e: any) {
-      setError(e.message || 'Sesion no encontrada');
+      setError(e.message || 'Sesión no encontrada');
       setBusy(false);
     }
+  };
+
+  const clearCode = () => {
+    setCode('');
+    setError('');
   };
 
   return (
@@ -52,7 +59,7 @@ function LoginScreen({ onLogin }: Props) {
           <h2><i className="fas fa-utensils"></i> 100Bocas</h2>
           <div className="login-sub">Pedidos colaborativos en tiempo real</div>
 
-          {error && <div className="login-error"> {error}</div>}
+          {error && <div className="login-error">⚠ {error}</div>}
 
           <label htmlFor="loginName">Tu nombre</label>
           <input
@@ -61,30 +68,51 @@ function LoginScreen({ onLogin }: Props) {
             placeholder="Ej: Ainoha"
             value={name}
             onChange={e => setName(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleCreate()}
+            onKeyDown={e => e.key === 'Enter' && (hasCode ? handleJoin() : handleCreate())}
             autoComplete="off"
           />
 
-          <button className="btn-primary" onClick={handleCreate} disabled={busy}>
-            <i className="fas fa-plus-circle"></i> Crear sesion nueva
-          </button>
+          {hasCode ? (
+            <>
+              <div className="join-code-banner">
+                <i className="fas fa-right-to-bracket"></i>
+                <span>Uniéndote a la sesión <strong>{code.trim().toUpperCase()}</strong></span>
+                <button className="join-clear-code" onClick={clearCode} title="Quitar código">
+                  <i className="fas fa-times"></i>
+                </button>
+              </div>
+              <button className="btn-primary btn-join" onClick={handleJoin} disabled={busy}>
+                <i className="fas fa-right-to-bracket"></i> Unirse a la sesión
+              </button>
+              <div className="join-switch-mode" onClick={clearCode}>
+                <i className="fas fa-plus-circle"></i> Crear sesión nueva
+              </div>
+            </>
+          ) : (
+            <>
+              <button className="btn-primary" onClick={handleCreate} disabled={busy}>
+                <i className="fas fa-plus-circle"></i> Crear sesión nueva
+              </button>
 
-          <div className="divider">o unite a una existente</div>
+              <div className="divider">o únete a una existente</div>
 
-          <div className="join-row">
-            <input
-              type="text"
-              placeholder="CODIGO"
-              maxLength={6}
-              value={code}
-              onChange={e => setCode(e.target.value.toUpperCase())}
-              onKeyDown={e => e.key === 'Enter' && handleJoin()}
-              autoComplete="off"
-            />
-            <button onClick={handleJoin} disabled={busy}>
-              <i className="fas fa-right-to-bracket"></i>
-            </button>
-          </div>
+              <div className="join-row">
+                <input
+                  type="text"
+                  placeholder="CÓDIGO"
+                  maxLength={6}
+                  value={code}
+                  onChange={e => setCode(e.target.value.toUpperCase())}
+                  onKeyDown={e => e.key === 'Enter' && handleJoin()}
+                  autoComplete="off"
+                />
+                <button onClick={handleJoin} disabled={busy}>
+                  <i className="fas fa-right-to-bracket"></i>
+                </button>
+              </div>
+            </>
+          )}
+
           <div className="my-name-hint">
             <i className="fas fa-info-circle"></i> Usa el mismo nombre para reconectar a tu pedido
           </div>
