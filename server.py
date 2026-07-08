@@ -806,7 +806,7 @@ async def _get_active_menu(conn) -> dict | None:
             "label": c["label"],
             "icon": c["icon"],
             "items": [{"id": i["id"], "code": i["code"] or "", "name": i["name"],
-                       "ingredients": i["ingredients"] or "", "price": i["price"] or "",
+                       "ingredients": i["ingredients"] or "", "price": float(i["price"]) if i["price"] is not None else 0,
                        "tags": i["tags"] or ""}
                       for i in items],
         })
@@ -977,7 +977,7 @@ async def admin_export_menus(request: Request):
                         "code": i["code"] or "",
                         "name": i["name"],
                         "ingredients": i["ingredients"] or "",
-                        "price": i["price"] or "",
+                        "price": float(i["price"]) if i["price"] is not None else 0,
                         "tags": i["tags"] or "",
                         "sort_order": i["sort_order"],
                     } for i in items],
@@ -1047,7 +1047,7 @@ async def admin_import_menus(request: Request):
                     await conn.execute(
                         "INSERT INTO menu_items (category_id, code, name, ingredients, price, tags, sort_order) VALUES ($1, $2, $3, $4, $5, $6, $7)",
                         cat_id, item.get("code", ""), item.get("name", ""),
-                        item.get("ingredients", ""), item.get("price", ""),
+                        item.get("ingredients", ""), item.get("price", 0),
                         item.get("tags", ""), item.get("sort_order", 0),
                     )
             # Import schedules
@@ -1091,7 +1091,7 @@ async def admin_get_menu(request: Request, menu_id: int):
                 "label": c["label"],
                 "icon": c["icon"],
                 "items": [{"id": i["id"], "code": i["code"] or "", "name": i["name"],
-                           "ingredients": i["ingredients"] or "", "price": i["price"] or "",
+                           "ingredients": i["ingredients"] or "", "price": float(i["price"]) if i["price"] is not None else 0,
                            "tags": i["tags"] or ""}
                           for i in items],
             })
@@ -1341,7 +1341,7 @@ async def admin_create_item(request: Request, cat_id: int):
         return JSONResponse({"error": "Invalid JSON"}, status_code=400)
     name = body.get("name", "").strip()
     code = body.get("code", "")
-    price = body.get("price", "")
+    price = body.get("price", 0)
     ingredients = body.get("ingredients", "")
     tags = body.get("tags", "")
     if not name:
@@ -1355,7 +1355,7 @@ async def admin_create_item(request: Request, cat_id: int):
             "INSERT INTO menu_items (category_id, code, name, ingredients, price, tags) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id",
             cat_id, code, name, ingredients, price, tags,
         )
-    return {"id": item_id, "name": name, "code": code}
+    return {"id": item_id, "name": name, "code": code, "price": float(price) if price else 0}
 
 
 @app.put("/api/admin/items/{item_id}")
@@ -1407,16 +1407,11 @@ async def admin_delete_item(request: Request, item_id: int):
 
 
 # ── Order History ──────────────────────────────────
-def _format_order_price(price_str: str) -> float:
-    """Parse a price string like '1€', '2,50€', '+0,50€' to float."""
-    if not price_str:
+def _as_float(val) -> float:
+    """Convert DB numeric value to float, default to 0.0."""
+    if val is None:
         return 0.0
-    cleaned = price_str.replace('€', '').replace('+', '').replace(' ', '').strip()
-    cleaned = cleaned.replace(',', '.')
-    try:
-        return float(cleaned)
-    except ValueError:
-        return 0.0
+    return float(val)
 
 
 @app.post("/api/session/{code}/place-order")
@@ -1470,7 +1465,7 @@ async def place_order(code: str, body: dict = {}):
                 )
                 for ir in item_rows:
                     key = ir["code"] or ir["name"]
-                    menu_data[f"{c['key']}:{key}"] = _format_order_price(ir["price"])
+                    menu_data[f"{c['key']}:{key}"] = _as_float(ir["price"])
 
         # Build items JSON with prices
         people_names = set()
@@ -1482,7 +1477,7 @@ async def place_order(code: str, body: dict = {}):
             total_items += qty
             # Try to find price
             lookup_key = f"{r['category']}:{r['item_code'] or r['item_name']}"
-            price = _format_order_price("")
+            price = _as_float(None)
             # Check from active menu prices
             if lookup_key in menu_data:
                 price = menu_data[lookup_key]

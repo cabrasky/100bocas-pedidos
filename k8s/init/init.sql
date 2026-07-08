@@ -65,7 +65,7 @@ CREATE TABLE IF NOT EXISTS menu_items (
     code          VARCHAR(10),
     name          VARCHAR(200) NOT NULL,
     ingredients   TEXT,
-    price         VARCHAR(20),
+    price         NUMERIC(10,2),
     sort_order    INTEGER DEFAULT 0
 );
 
