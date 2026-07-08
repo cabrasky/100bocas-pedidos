@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { adminService, type AdminStats as AdminStatsType } from '../../services/admin.service';
 
 const CAT_LABELS: Record<string, string> = {
   bocas: '100Bocas', clasicos: 'Clásicos', imprescindibles: 'Imprescindibles',
@@ -9,22 +10,12 @@ const CAT_LABELS: Record<string, string> = {
   especiales_sin_gluten: 'Sin Gluten',
 };
 
-interface AdminStats {
-  totals: Record<string, number>;
-  categories: { category: string; count: number }[];
-  daily_items: { day: string; count: number }[];
-  hourly_activity: { hour: number; count: number }[];
-  ws_connected: number;
-  ws_rooms: number;
-}
-
 interface Props {
-  authHeaders: () => Record<string, string>;
-  base: string;
+  // Component now uses adminService directly, no need for props
 }
 
-function AdminStats({ authHeaders, base }: Props) {
-  const [stats, setStats] = useState<AdminStats | null>(null);
+function AdminStats({}: Props) {
+  const [stats, setStats] = useState<AdminStatsType | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -32,14 +23,15 @@ function AdminStats({ authHeaders, base }: Props) {
     const load = async () => {
       setLoading(true);
       try {
-        const r = await fetch(`${base}/api/admin/stats`, { headers: authHeaders() });
-        if (r.status === 401 || r.status === 403) return;
-        setStats(await r.json());
-      } catch { setError('Error al cargar estadísticas'); }
+        const result = await adminService.getStats();
+        setStats(result);
+      } catch {
+        setError('Error al cargar estadísticas');
+      }
       setLoading(false);
     };
     load();
-  }, [base, authHeaders]);
+  }, []);
 
   const fmt = (n: number) => n.toLocaleString('es-ES');
   const barWidth = (val: number, max: number) => max > 0 ? (val / max) * 100 : 0;

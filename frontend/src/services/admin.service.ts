@@ -6,6 +6,15 @@
 import { apiClient } from "./client";
 import { authManager } from "./auth";
 
+export interface AdminStats {
+  totals: Record<string, number>;
+  categories: { category: string; count: number }[];
+  daily_items: { day: string; count: number }[];
+  hourly_activity: { hour: number; count: number }[];
+  ws_connected: number;
+  ws_rooms: number;
+}
+
 export class AdminService {
   /** Login with password, returns JWT token */
   async login(password: string): Promise<{ token: string }> {
@@ -32,6 +41,11 @@ export class AdminService {
     } catch {
       return { valid: false };
     }
+  }
+
+  /** Get admin statistics */
+  async getStats(): Promise<AdminStats> {
+    return apiClient.get<AdminStats>("/api/admin/stats");
   }
 }
 

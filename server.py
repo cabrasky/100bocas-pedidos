@@ -9,6 +9,7 @@ import hashlib
 import hmac
 import ipaddress
 import json
+import logging
 import os
 import random
 import re
@@ -23,6 +24,13 @@ from ipaddress import ip_address, ip_network
 import asyncpg
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
+
+# ── Logging ────────────────────────────────────────
+logging.basicConfig(
+    level=logging.INFO,
+    format='[%(asctime)s] %(levelname)s: %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 # ── Config ────────────────────────────────────────
 DB_DSN = os.getenv("BOCAS_DB", "postgresql://bocas@localhost:5433/100bocas")
@@ -210,7 +218,7 @@ async def periodic_cleanup():
         try:
             await cleanup_old_sessions()
         except Exception as exc:
-            print(f"[cleanup] Error: {exc}")
+            logger.error(f"[cleanup] Error: {exc}", exc_info=True)
 
 
 # ── Schema migrations (Liquibase-style) ─────────────
@@ -236,12 +244,12 @@ async def run_migrations():
     await _ensure_schema_migrations_table()
 
     if not os.path.isdir(MIGRATIONS_DIR):
-        print(f"[migrate] No migrations directory found at {MIGRATIONS_DIR}")
+        logger.info(f"[migrate] No migrations directory found at {MIGRATIONS_DIR}")
         return
 
     files = sorted(f for f in os.listdir(MIGRATIONS_DIR) if f.endswith(".sql"))
     if not files:
-        print("[migrate] No migration files found")
+        logger.info("[migrate] No migration files found")
         return
 
     async with pool.acquire() as conn:
@@ -280,19 +288,19 @@ async def run_migrations():
                         "INSERT INTO schema_migrations (version, filename, description) VALUES ($1, $2, $3)",
                         version, fname, desc,
                     )
-            print(f"[migrate] ✓ {fname} — {desc or version}")
+            logger.info(f"[migrate] ✓ {fname} — {desc or version}")
         except Exception as e:
-            print(f"[migrate] ✗ {fname} FAILED: {e}")
+            logger.error(f"[migrate] ✗ {fname} FAILED: {e}", exc_info=True)
             raise
 
 
 # ── Admin auth ────────────────────────────────────
 ADMIN_PASSWORD = os.getenv("BOCAS_ADMIN_PASSWORD", "")
 if not ADMIN_PASSWORD:
-    # Generate a random password and print it
+    # Generate a random password and log it
     ADMIN_PASSWORD = ''.join(random.choices(string.ascii_letters + string.digits, k=12))
-    print(f"[auth] ⚠️  BOCAS_ADMIN_PASSWORD not set. Generated: {ADMIN_PASSWORD}")
-    print(f"[auth] Set BOCAS_ADMIN_PASSWORD env var to use a custom password.")
+    logger.warning(f"[auth] BOCAS_ADMIN_PASSWORD not set. Generated: {ADMIN_PASSWORD}")
+    logger.info(f"[auth] Set BOCAS_ADMIN_PASSWORD env var to use a custom password.")
 
 ADMIN_SERVER_SECRET = os.getenv("BOCAS_ADMIN_SERVER_SECRET", "") or ''.join(random.choices(string.ascii_letters + string.digits, k=32))
 _admin_token: str | None = None
@@ -331,7 +339,7 @@ async def lifespan(_app: FastAPI):
     pool = await asyncpg.create_pool(DB_DSN, min_size=2, max_size=10)
     _cleanup_task = asyncio.create_task(periodic_cleanup())
     await run_migrations()
-    print(f"[server] Security: RPM={MAX_REQUESTS_PER_MIN}, WS/IP={MAX_WS_PER_IP}, "
+    logger.info(f"[server] Security: RPM={MAX_REQUESTS_PER_MIN}, WS/IP={MAX_WS_PER_IP}, "
           f"WS/session={MAX_WS_PER_SESSION}, WS total={MAX_WS_TOTAL}")
     yield
     if _cleanup_task:
@@ -378,12 +386,14 @@ async def broadcast(session_code: str, event: dict):
     for ws in ws_rooms[session_code]:
         try:
             await ws.send_text(msg)
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[broadcast] Failed to send to WS in session {session_code}: {e}")
             dead.append(ws)
     for ws in dead:
         ws_rooms[session_code].discard(ws)
     if not ws_rooms[session_code]:
         del ws_rooms[session_code]
+        logger.debug(f"[broadcast] Cleaned up empty session {session_code}")
 
 
 async def get_session_data(code: str) -> dict | None:
@@ -549,6 +559,7 @@ async def add_person(code: str, body: dict):
                 row["id"], name,
             )
         except asyncpg.UniqueViolationError:
+            logger.debug(f"[add_person] Person {name} already exists in session {code}")
             pass
 
     data = await get_session_data(code)
@@ -1298,9 +1309,9 @@ async def internal_apply_schedule():
         if row:
             await conn.execute("UPDATE menu_configs SET is_active = (id = $1)", row["menu_id"])
             menu = await conn.fetchrow("SELECT name FROM menu_configs WHERE id = $1", row["menu_id"])
-            print(f"[schedule] Auto-activated '{menu['name']}' for day {today}")
+            logger.info(f"[schedule] Auto-activated '{menu['name']}' for day {today}")
             return {"status": "ok", "activated": menu["name"]}
-    print(f"[schedule] No schedule for day {today}")
+    logger.debug(f"[schedule] No schedule for day {today}")
     return {"status": "ok", "activated": None}
 
 
@@ -1657,7 +1668,7 @@ async def _proxy_to_ssr(url: str) -> HTMLResponse:
             resp = await client.get(f"{SSR_URL}{url}")
             return _secure_response(HTMLResponse(content=resp.text, status_code=resp.status_code))
     except Exception as exc:
-        print(f"[ssr] Proxy error: {exc}")
+        logger.error(f"[ssr] Proxy error: {exc}", exc_info=True)
         # Fallback: serve the client index.html (client-side render)
         index_path = os.path.join(STATIC_DIR, "index.html")
         if os.path.isfile(index_path):
