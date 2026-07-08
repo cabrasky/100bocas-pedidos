@@ -174,6 +174,11 @@ pipeline {
                                 fi
                             '''
                             sh 'kubectl apply -k overlays/production'
+                            sh '''
+                                echo "--- Forcing rollout restart to pick up fresh image ---"
+                                kubectl rollout restart deployment/bocas-backend -n bocas
+                                kubectl rollout restart deployment/bocas-frontend -n bocas
+                            '''
                         } else {
                             // ── BRANCH / PREVIEW DEPLOYMENT ──
                             def safeName = env.BRANCH_SAFE
@@ -209,6 +214,10 @@ pipeline {
                                 # Deploy branch (use generated kustomization)
                                 mv overlays/branch/kustomization.yaml.generated overlays/branch/kustomization.yaml
                                 kubectl apply -k overlays/branch
+
+                                echo "--- Forcing rollout restart to pick up fresh image ---"
+                                kubectl rollout restart deployment/bocas-backend -n ${deployNs}
+                                kubectl rollout restart deployment/bocas-frontend -n ${deployNs}
 
                                 echo ""
                                 echo "═══════════════ Deployed Resources ═══════════════════"

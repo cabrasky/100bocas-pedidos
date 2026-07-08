@@ -30,6 +30,7 @@ spec:
       containers:
       - name: frontend
         image: PLACEHOLDER_FRONTEND
+        imagePullPolicy: Always
         ports:
         - containerPort: 8120
         env:
