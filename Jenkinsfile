@@ -121,7 +121,7 @@ pipeline {
                 stage('Backend') {
                     steps {
                         script {
-                            sh "docker build -t ${BACKEND_IMAGE}:${IMAGE_TAG} -f Dockerfile.backend ."
+                            sh "DOCKER_BUILDKIT=0 docker build -t ${BACKEND_IMAGE}:${IMAGE_TAG} -f Dockerfile.backend ."
                             sh "docker push ${BACKEND_IMAGE}:${IMAGE_TAG}"
                             if (env.IS_MAIN == 'true') {
                                 sh "docker tag ${BACKEND_IMAGE}:${IMAGE_TAG} ${BACKEND_IMAGE}:latest"
@@ -133,7 +133,7 @@ pipeline {
                 stage('Frontend') {
                     steps {
                         script {
-                            sh "docker build -t ${FRONTEND_IMAGE}:${IMAGE_TAG} -f Dockerfile.frontend ."
+                            sh "DOCKER_BUILDKIT=0 docker build -t ${FRONTEND_IMAGE}:${IMAGE_TAG} -f Dockerfile.frontend ."
                             sh "docker push ${FRONTEND_IMAGE}:${IMAGE_TAG}"
                             if (env.IS_MAIN == 'true') {
                                 sh "docker tag ${FRONTEND_IMAGE}:${IMAGE_TAG} ${FRONTEND_IMAGE}:latest"
