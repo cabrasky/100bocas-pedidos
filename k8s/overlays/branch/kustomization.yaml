@@ -1,0 +1,51 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# BRANCH_DEPLOYMENT — overridden by Jenkins pipeline for each branch
+# PLACEHOLDER_BRANCH and PLACEHOLDER_BRANCH_TAG are replaced at build time.
+#
+# Each branch gets its own isolated namespace with DB, backend, frontend
+# and a dedicated ingress at branch-{name}.100bocas.cabrasky.net
+
+resources:
+- ../../base
+
+namespace: bocas-branch-PLACEHOLDER_BRANCH
+
+patches:
+- target:
+    kind: Ingress
+    name: bocas-ingress
+  patch: |-
+    - op: replace
+      path: /spec/rules/0/host
+      value: branch-PLACEHOLDER_BRANCH.100bocas.cabrasky.net
+- target:
+    kind: Deployment
+    name: bocas-backend
+  patch: |-
+    - op: replace
+      path: /spec/replicas
+      value: 1
+- target:
+    kind: Deployment
+    name: bocas-frontend
+  patch: |-
+    - op: replace
+      path: /spec/replicas
+      value: 1
+- target:
+    kind: Namespace
+    name: bocas
+  patch: |-
+    - op: replace
+      path: /metadata/name
+      value: bocas-branch-PLACEHOLDER_BRANCH
+
+images:
+- name: PLACEHOLDER_BACKEND
+  newName: 192.168.1.11:5000/bocas-backend
+  newTag: PLACEHOLDER_BRANCH_TAG
+- name: PLACEHOLDER_FRONTEND
+  newName: 192.168.1.11:5000/bocas-frontend
+  newTag: PLACEHOLDER_BRANCH_TAG

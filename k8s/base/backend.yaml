@@ -36,6 +36,7 @@ spec:
       containers:
       - name: backend
         image: PLACEHOLDER_BACKEND
+        imagePullPolicy: Always
         ports:
         - containerPort: 8112
         env:
