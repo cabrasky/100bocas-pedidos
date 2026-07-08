@@ -90,7 +90,7 @@ function AdminPage() {
             {/* Tab content */}
             <div className="admin-content">
               {tab === 'stats' && <AdminStats authHeaders={authHeaders} base={base} />}
-              {tab === 'menus' && <AdminMenus authHeaders={authHeaders} base={base} />}
+              {tab === 'menus' && <AdminMenus />}
             </div>
           </>
         )}

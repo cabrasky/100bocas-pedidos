@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { getOrderHistory } from '../services/api';
+import { sessionService } from '../services/api';
 
 interface Props {
   sessionCode: string;
@@ -14,7 +14,7 @@ function HistoryPanel({ sessionCode }: Props) {
   useEffect(() => {
     if (!sessionCode) return;
     setLoading(true);
-    getOrderHistory(sessionCode)
+    sessionService.getOrderHistory(sessionCode)
       .then(data => {
         setOrders(data);
         if (data.length > 0) setCollapsed(false);
@@ -27,7 +27,7 @@ function HistoryPanel({ sessionCode }: Props) {
   useEffect(() => {
     if (!sessionCode || collapsed) return;
     const timer = setInterval(() => {
-      getOrderHistory(sessionCode).then(data => setOrders(data)).catch(() => {});
+      sessionService.getOrderHistory(sessionCode).then(data => setOrders(data)).catch(() => {});
     }, 5000);
     return () => clearInterval(timer);
   }, [sessionCode, collapsed]);

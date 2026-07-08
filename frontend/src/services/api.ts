@@ -1,85 +1,82 @@
-import { SessionData } from '../types';
+/**
+ * API service — capa de comunicación con el backend.
+ * Refactorizado: ahora usa los servicios modulares de /services/.
+ * Mantiene la interfaz pública para compatibilidad con componentes existentes.
+ *
+ * Patrón yambo: cada dominio tiene su propio servicio en /services/.
+ */
 
-const API_BASE = '';
+// Re-exportar todos los servicios modulares
+import { apiClient, ApiClient, ApiError, NetworkError, TimeoutError } from './client';
+import { authManager, authHeaders } from './auth';
+import { menuService } from './menus.service';
+import { itemService } from './items.service';
+import { sessionService } from './sessions.service';
+import { adminService } from './admin.service';
+export { menuService } from './menus.service';
+export { itemService } from './items.service';
+export { sessionService } from './sessions.service';
+export { adminService } from './admin.service';
 
-export async function api<T>(method: string, path: string, body?: unknown): Promise<T> {
-  const opts: RequestInit = {
-    method,
-    headers: { 'Content-Type': 'application/json' },
-  };
-  if (body) opts.body = JSON.stringify(body);
-  const r = await fetch(`${API_BASE}${path}`, opts);
-  return r.json();
-}
+// Re-exportar tipos
+export type {
+  ApiMenuItemData, ApiMenuCategoryData, ApiMenuData,
+  MenuConfig, MenuDetail, CategoryData, ItemData,
+  SessionData, Person, OrderItem, OrderResult,
+  ItemPayload, MenuPayload,
+} from './types';
 
-export interface ApiMenuCategory {
-  id: number; key: string; label: string; icon: string;
-  items: ApiMenuItem[];
-}
-export interface ApiMenuItem {
-  id: number; code: string; name: string; ingredients: string; price: string; tags: string; allergens: string;
-}
-export interface ApiActiveMenu {
-  id: number; name: string; slug: string; description: string;
-  categories: ApiMenuCategory[];
-}
-
-export function fetchActiveMenu(): Promise<ApiActiveMenu> {
-  return api('GET', '/api/menu/active');
-}
-
-export function createSession(): Promise<{ code: string }> {
-  return api('POST', '/api/session');
-}
-
-export function joinSession(code: string): Promise<SessionData & { error?: string }> {
-  return api('POST', `/api/session/${code}/join`);
-}
-
-export function addPerson(code: string, name: string): Promise<SessionData> {
-  return api('POST', `/api/session/${code}/person`, { name });
-}
-
-export function removePerson(code: string, name: string): Promise<SessionData> {
-  return api('DELETE', `/api/session/${code}/person/${encodeURIComponent(name)}`);
-}
-
-export function upsertItem(
-  code: string, personName: string,
-  itemKey: string, itemName: string, itemCode: string, category: string, qty: number
-): Promise<SessionData> {
-  return api('PUT', `/api/session/${code}/person/${encodeURIComponent(personName)}/item`, {
-    item_key: itemKey, item_name: itemName, item_code: itemCode, category, qty,
-  });
-}
-
-export function removeItem(code: string, personName: string, itemKey: string): Promise<SessionData> {
-  return api('DELETE', `/api/session/${code}/person/${encodeURIComponent(personName)}/item/${encodeURIComponent(itemKey)}`);
-}
-
-export function clearPerson(code: string, personName: string): Promise<SessionData> {
-  return api('DELETE', `/api/session/${code}/person/${encodeURIComponent(personName)}/clear`);
-}
-
+// ── Session cookie helpers (se quedan aquí, no son API) ──
 const COOKIE_NAME = '100bocas';
+
 export function setSessionCookie(code: string, name: string) {
   const val = encodeURIComponent(JSON.stringify({ code, name }));
   document.cookie = `${COOKIE_NAME}=${val};path=/;max-age=${30 * 24 * 3600};SameSite=Lax`;
 }
+
 export function getSessionCookie(): { code: string; name: string } | null {
   const m = document.cookie.match(new RegExp(`(?:^| )${COOKIE_NAME}=([^;]+)`));
   if (!m) return null;
   try { return JSON.parse(decodeURIComponent(m[1])); } catch { return null; }
 }
+
 export function clearSessionCookie() {
   document.cookie = `${COOKIE_NAME}=;path=/;max-age=0;SameSite=Lax`;
 }
 
-// ── Order History ──────────────────────────────────
-export function placeOrder(code: string, personName: string): Promise<{ status: string; order_number: number; total_items: number; people_count: number }> {
-  return api('POST', `/api/session/${code}/place-order`, { person_name: personName });
-}
+// ── Legacy backward-compatible exports ──────────────────
+// These were the old function names. New code should use the services directly.
 
+export function fetchActiveMenu() {
+  return sessionService.getActiveMenu() as Promise<any>;
+}
+export function createSession(): Promise<{ code: string }> {
+  return sessionService.create();
+}
+export function joinSession(code: string) {
+  return sessionService.join(code) as Promise<any>;
+}
+export function addPerson(code: string, name: string) {
+  return sessionService.addPerson(code, name) as Promise<any>;
+}
+export function removePerson(code: string, name: string) {
+  return sessionService.removePerson(code, name) as Promise<any>;
+}
+export function upsertItem(
+  code: string, personName: string,
+  itemKey: string, itemName: string, itemCode: string, category: string, qty: number,
+) {
+  return sessionService.upsertItem(code, personName, itemKey, itemName, itemCode, category, qty) as Promise<any>;
+}
+export function removeItem(code: string, personName: string, itemKey: string) {
+  return sessionService.removeItem(code, personName, itemKey) as Promise<any>;
+}
+export function clearPerson(code: string, personName: string) {
+  return sessionService.clearPerson(code, personName) as Promise<any>;
+}
+export function placeOrder(code: string, personName: string) {
+  return sessionService.placeOrder(code, personName) as Promise<any>;
+}
 export function getOrderHistory(code: string): Promise<any[]> {
-  return api('GET', `/api/session/${code}/orders`);
+  return sessionService.getOrderHistory(code) as Promise<any[]>;
 }

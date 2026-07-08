@@ -115,7 +115,7 @@ function OrderPage() {
       }
       if (data.people) {
         setPersons(data.people);
-        const idx = Math.max(0, data.people.findIndex(p => p.name === name));
+        const idx = Math.max(0, data.people.findIndex((p: any) => p.name === name));
         setCurrentPersonIdx(idx < 0 ? 0 : idx);
       }
     } catch { /* ignore */ }

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { getOrderHistory } from '../../services/api';
+import { sessionService } from '../../services/api';
 import { CATEGORY_LABELS } from '../../data/menuData';
 
 interface Props {
@@ -16,7 +16,7 @@ function OrderHistoryModal({ open, onClose, sessionCode }: Props) {
   useEffect(() => {
     if (open && sessionCode) {
       setLoading(true);
-      getOrderHistory(sessionCode)
+      sessionService.getOrderHistory(sessionCode)
         .then(data => setOrders(data))
         .catch(() => {})
         .finally(() => setLoading(false));
