@@ -610,17 +610,13 @@ function DetailView({ menu, authHeaders, base, onBack, onRefresh, onActivate, on
   const scheduledDays = menu.schedules.map(s => s.day);
 
   return (
-    <div>
+    <div className="menu-detail-view">
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
-        <button className="menu-back-btn" onClick={onBack} style={{
-          background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 10,
-          padding: '8px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 600,
-          fontFamily: 'inherit', color: '#475569', display: 'flex', alignItems: 'center', gap: 6,
-        }}>
+        <button className="menu-back-btn" onClick={onBack}>
           <i className="fas fa-arrow-left"></i> Volver
         </button>
-        <h3 style={{ flex: 1, fontSize: 18, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
+        <h3 style={{ flex: 1, fontSize: 18, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, color: '#f1f5f9' }}>
           {menu.name}
           {menu.is_active && <span className="menu-active-label">Activa</span>}
           {!menu.is_active && (
@@ -644,8 +640,8 @@ function DetailView({ menu, authHeaders, base, onBack, onRefresh, onActivate, on
             return (
               <button key={i} onClick={() => onSetSchedule(menu.id, i, !active)}
                 style={{
-                  padding: '6px 12px', borderRadius: 8, border: active ? '2px solid #059669' : '1.5px solid #e2e8f0',
-                  background: active ? '#f0fdf4' : '#fff', color: active ? '#065f46' : '#64748b',
+                  padding: '6px 12px', borderRadius: 8, border: active ? '2px solid #10b981' : '1.5px solid #334155',
+                  background: active ? '#064e3b' : '#0f172a', color: active ? '#6ee7b7' : '#94a3b8',
                   fontWeight: 700, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit',
                   transition: 'all .15s',
                 }}>
@@ -676,8 +672,8 @@ function DetailView({ menu, authHeaders, base, onBack, onRefresh, onActivate, on
               </span>
               {menu.categories.map(c => (
                 <span key={c.id} style={{
-                  background: '#f1f5f9', padding: '3px 8px', borderRadius: 6, fontSize: 11,
-                  color: '#475569', display: 'inline-flex', alignItems: 'center', gap: 4,
+                  background: '#1e293b', padding: '3px 8px', borderRadius: 6, fontSize: 11,
+                  color: '#cbd5e1', border: '1px solid #334155', display: 'inline-flex', alignItems: 'center', gap: 4,
                 }}>
                   <i className={`fas ${c.icon}`} style={{ fontSize: 9 }}></i> {c.label}
                   <span style={{ color: '#94a3b8', fontSize: 10 }}>({c.items.length})</span>
@@ -689,7 +685,7 @@ function DetailView({ menu, authHeaders, base, onBack, onRefresh, onActivate, on
               ))}
               <button onClick={() => onAddCategory(menu.id)} style={{
                 background: 'none', border: '1px dashed #94a3b8', borderRadius: 6, padding: '3px 8px',
-                fontSize: 11, color: '#64748b', cursor: 'pointer', fontFamily: 'inherit',
+                fontSize: 11, color: '#cbd5e1', cursor: 'pointer', fontFamily: 'inherit',
               }}>
                 <i className="fas fa-plus"></i> Añadir
               </button>
@@ -697,14 +693,14 @@ function DetailView({ menu, authHeaders, base, onBack, onRefresh, onActivate, on
 
             {/* Items per category */}
             {menu.categories.map(c => (
-              <div key={c.id} style={{ marginBottom: 12, border: '1px solid #e2e8f0', borderRadius: 10, padding: 12, background: '#fafafa' }}>
+              <div key={c.id} style={{ marginBottom: 12, border: '1px solid #334155', borderRadius: 10, padding: 12, background: '#111827' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
                   <i className={`fas ${c.icon}`} style={{ color: '#059669', fontSize: 12 }}></i>
-                  <strong style={{ fontSize: 13 }}>{c.label}</strong>
+                  <strong style={{ fontSize: 13, color: '#e2e8f0' }}>{c.label}</strong>
                   <span style={{ fontSize: 10, color: '#94a3b8' }}>key: {c.key}</span>
                   <button onClick={() => onAddItem(c.id, menu.id)} style={{
-                    marginLeft: 'auto', background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 6,
-                    padding: '3px 10px', fontSize: 11, fontWeight: 600, color: '#059669', cursor: 'pointer', fontFamily: 'inherit',
+                    marginLeft: 'auto', background: '#064e3b', border: '1px solid #10b981', borderRadius: 6,
+                    padding: '3px 10px', fontSize: 11, fontWeight: 600, color: '#6ee7b7', cursor: 'pointer', fontFamily: 'inherit',
                   }}>
                     <i className="fas fa-plus"></i> Producto
                   </button>
@@ -717,14 +713,14 @@ function DetailView({ menu, authHeaders, base, onBack, onRefresh, onActivate, on
                     {c.items.map(i => (
                       <div key={i.id} style={{
                         display: 'flex', alignItems: 'center', gap: 8, padding: '5px 8px',
-                        background: '#fff', borderRadius: 6, border: '1px solid #f1f5f9',
-                        fontSize: 12,
+                        background: '#0f172a', borderRadius: 6, border: '1px solid #1e293b',
+                        fontSize: 12, color: '#cbd5e1',
                       }}>
                         {i.code && <span style={{ color: '#94a3b8', fontWeight: 700, fontSize: 10 }}>#{i.code}</span>}
-                        <span style={{ flex: 1, fontWeight: 600 }}>{i.name}</span>
-                        {(i as any).allergens && <span style={{ fontSize: 9, color: '#ef4444', fontStyle: 'italic' }}>{(i as any).allergens}</span>}
+                        <span style={{ flex: 1, fontWeight: 600, color: '#e2e8f0' }}>{i.name}</span>
+                        {(i as any).allergens && <span style={{ fontSize: 9, color: '#f87171', fontStyle: 'italic' }}>{(i as any).allergens}</span>}
                         {i.ingredients && <span style={{ color: '#94a3b8', fontSize: 10 }}>{i.ingredients}</span>}
-                        <span style={{ fontWeight: 700, color: '#059669' }}>{i.price}</span>
+                        <span style={{ fontWeight: 700, color: '#34d399' }}>{i.price}</span>
                         <button onClick={() => onEditItem(i, c.id, menu.id)} style={{
                           background: 'none', border: 'none', color: '#3b82f6', cursor: 'pointer', fontSize: 11,
                         }}>
@@ -747,18 +743,5 @@ function DetailView({ menu, authHeaders, base, onBack, onRefresh, onActivate, on
     </div>
   );
 }
-
-// Add duplicate button CSS
-const dupStyle = document.createElement('style');
-dupStyle.textContent = `
-  .menu-duplicate-btn {
-    background: none; border: 1px solid #e2e8f0; border-radius: 8px;
-    width: 32px; height: 32px; cursor: pointer; font-size: 13px;
-    color: #3b82f6; display: flex; align-items: center; justify-content: center;
-    transition: all .15s;
-  }
-  .menu-duplicate-btn:hover { background: #eff6ff; border-color: #93c5fd; }
-`;
-document.head.appendChild(dupStyle);
 
 export default AdminMenus;

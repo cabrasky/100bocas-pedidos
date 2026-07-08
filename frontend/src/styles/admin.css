@@ -454,6 +454,25 @@
   transition: all .15s;
 }
 .menu-delete-btn:hover { background: #450a0a; border-color: #7f1d1d; }
+.menu-duplicate-btn {
+  background: none;
+  border: 0.0625rem solid #334155;
+  border-radius: 0.5rem;
+  width: 2rem;
+  height: 2rem;
+  cursor: pointer;
+  font-size: 0.8125rem;
+  color: #93c5fd;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all .15s;
+}
+.menu-duplicate-btn:hover {
+  background: #172554;
+  border-color: #3b82f6;
+  color: #bfdbfe;
+}
 .menu-export-btn, .menu-import-btn {
   padding: 0.3125rem 0.75rem; border: 0.0625rem solid #334155; border-radius: 0.5rem;
   background: #0f172a; color: #94a3b8; font-size: 0.75rem; font-weight: 600;
