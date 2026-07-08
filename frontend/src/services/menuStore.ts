@@ -69,29 +69,35 @@ export function getCats(): string[] {
 
 // ── Price helpers ──
 export function getPrice(catKey: string, item: MenuItem): string {
+  const fmt = (v: number | string | undefined | null): string => {
+    if (v === null || v === undefined || v === '') return '';
+    const n = typeof v === 'string' ? parseFloat(v.replace(',', '.')) : v;
+    if (isNaN(n) || n === 0) return '';
+    return n.toFixed(2).replace('.', ',') + '€';
+  };
   // 1. Check if item has a price override in the active menu
   if (_activeMenuLookup) {
     const catItems = _activeMenuLookup[catKey];
     if (catItems) {
       const lookupKey = item.code || item.name;
       const apiItem = catItems[lookupKey];
-      if (apiItem?.price) return apiItem.price;
+      if (apiItem?.price) return fmt(apiItem.price);
     }
   }
 
   // 2. Check item-level price
-  if (item.price) return item.price;
+  if (item.price) return fmt(item.price);
 
   // 3. Check category-level price in static menu
   const cat = MENU[catKey];
-  if (cat?.price) return cat.price;
+  if (cat?.price) return fmt(cat.price);
 
   // 4. Reverse lookup by display name
   for (const [k, v] of Object.entries(CATEGORY_LABELS)) {
     const label = v.replace(' 1€', '');
     const catKeyClean = catKey.replace(' 1€', '');
     if (v === catKey || k === catKeyClean || label === catKeyClean) {
-      if (MENU[k]?.price) return MENU[k].price!;
+      if (MENU[k]?.price) return fmt(MENU[k]!.price!);
     }
   }
 
@@ -101,13 +107,13 @@ export function getPrice(catKey: string, item: MenuItem): string {
     const found = categoryData.items.find(
       mi => mi.name === item.name || (item.code && mi.code === item.code)
     );
-    if (found?.price) return found.price;
+    if (found?.price) return fmt(found.price);
     // Fallback: try all categories
     for (const cat of Object.values(MENU)) {
       const f = cat.items?.find(
         mi => mi.name === item.name || (item.code && mi.code === item.code)
       );
-      if (f?.price) return f.price;
+      if (f?.price) return fmt(f.price);
     }
   }
 

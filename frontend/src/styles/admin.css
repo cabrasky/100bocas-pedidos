@@ -512,3 +512,39 @@
 }
 .ban-msg-ok, .notif-msg-ok { background: #064e3b; color: #6ee7b7; }
 .ban-msg-err, .notif-msg-err { background: #450a0a; color: #fca5a5; }
+
+/* ── Tag Selector Modal ── */
+.admin-overlay-simple {
+  position: fixed; inset: 0; background: rgba(0,0,0,.6);
+  display: flex; align-items: center; justify-content: center; z-index: 1000;
+}
+.admin-modal-small {
+  background: #0f172a; border: 1px solid #334155; border-radius: 0.75rem;
+  width: 90%; max-width: 28rem; max-height: 80vh; overflow-y: auto;
+}
+.tag-selector-body { padding: 1rem 1.25rem 1.25rem; }
+.tag-grid {
+  display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem;
+}
+.tag-pill {
+  display: inline-flex; align-items: center; gap: 0.375rem;
+  padding: 0.5rem 0.75rem; border-radius: 1.5rem; font-size: 0.8125rem;
+  font-weight: 600; cursor: pointer; transition: all .15s;
+  font-family: inherit;
+}
+.tag-pill:hover { transform: scale(1.05); }
+.tag-pill i { font-size: 0.75rem; }
+.tag-selector-actions {
+  display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 0.5rem;
+}
+.menu-cancel-btn {
+  padding: 0.5rem 1rem; border: 1px solid #334155; border-radius: 0.375rem;
+  background: transparent; color: #94a3b8; font-size: 0.8125rem; cursor: pointer;
+  font-family: inherit;
+}
+.menu-save-btn {
+  padding: 0.5rem 1rem; border: none; border-radius: 0.375rem;
+  background: #059669; color: #fff; font-size: 0.8125rem; font-weight: 600;
+  cursor: pointer; font-family: inherit;
+}
+.menu-save-btn:hover { background: #047857; }

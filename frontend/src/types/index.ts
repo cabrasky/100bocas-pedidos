@@ -3,11 +3,11 @@ export interface MenuItem {
   code?: string | null;
   name: string;
   ingredients?: string;
-  price?: string;
+  price?: number | string;
 }
 
 export interface MenuCategory {
-  price?: string;
+  price?: number | string;
   items: MenuItem[];
 }
 

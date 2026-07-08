@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { MenuConfig } from '../../types';
+import { MenuConfig, TAG_CONFIGS, getTagMeta } from '../../types';
 
 const DAY_NAMES = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 const DAY_FULL = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
@@ -35,6 +35,7 @@ function AdminMenus({ authHeaders, base }: Props) {
   const [newDesc, setNewDesc] = useState('');
   const [editingMenu, setEditingMenu] = useState<MenuDetail | null>(null);
   const [schMsg, setSchMsg] = useState('');
+  const [tagSelector, setTagSelector] = useState<{ item?: ItemData; catId: number; menuId: number; mode: 'add' | 'edit' } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -187,32 +188,20 @@ function AdminMenus({ authHeaders, base }: Props) {
     const name = prompt('Nombre del producto:');
     if (!name?.trim()) return;
     const code = prompt('Código (opcional, ej: 01):') || '';
-    const price = prompt('Precio (opcional, ej: 1€):') || '';
-    const tags = prompt('Etiquetas separadas por coma (opcional, ej: vegetarian,spicy):') || '';
-    try {
-      const r = await fetch(`${base}/api/admin/categories/${catId}/items`, {
-        method: 'POST', headers: authHeaders(),
-        body: JSON.stringify({ name: name.trim(), code, price, tags }),
-      });
-      const data = await r.json();
-      if (data.error) { showMsg(data.error, 'err'); } else { showMsg(` "${name}" añadido`, 'ok'); loadMenu(menuId); }
-    } catch { showMsg('Error', 'err'); }
+    const priceStr = prompt('Precio (opcional, ej: 1.50):') || '0';
+    const price = parseFloat(priceStr.replace(',', '.')) || 0;
+    setTagSelector({ catId, menuId, mode: 'add' });
+    // Tags selected via modal
   };
 
   const handleEditItem = async (item: ItemData & { tags?: string }, catId: number, menuId: number) => {
     const name = prompt('Nombre:', item.name);
     if (!name?.trim()) return;
     const code = prompt('Código:', item.code) || '';
-    const price = prompt('Precio:', item.price) || '';
-    const tags = prompt('Etiquetas separadas por coma (ej: vegetarian,spicy):', item.tags || '') || '';
-    try {
-      await fetch(`${base}/api/admin/items/${item.id}`, {
-        method: 'PUT', headers: authHeaders(),
-        body: JSON.stringify({ name: name.trim(), code, price, tags }),
-      });
-      showMsg(' Producto actualizado', 'ok');
-      loadMenu(menuId);
-    } catch { showMsg('Error', 'err'); }
+    const priceStr = prompt('Precio:', String(item.price ?? 0)) || '0';
+    const price = parseFloat(priceStr.replace(',', '.')) || 0;
+    setTagSelector({ item, catId, menuId, mode: 'edit' });
+    // Tags selected via modal
   };
 
   const handleDeleteItem = async (itemId: number, itemName: string, menuId: number) => {
@@ -224,10 +213,105 @@ function AdminMenus({ authHeaders, base }: Props) {
     } catch { showMsg('Error', 'err'); }
   };
 
+
+  // ── Tag Selector Modal ──
+  const handleSaveWithTags = async (tags: string[]) => {
+    const sel = tagSelector;
+    if (!sel) return;
+    const tagsStr = tags.join(',');
+    const item = sel.item;
+    if (sel.mode === 'add') {
+      const name = prompt('Confirma nombre:');
+      if (!name?.trim()) { setTagSelector(null); return; }
+      const code = prompt('Código (opcional):') || '';
+      const priceStr = prompt('Precio:', '1') || '0';
+      const price = parseFloat(priceStr.replace(',', '.')) || 0;
+      try {
+        const r = await fetch(`${base}/api/admin/categories/${sel.catId}/items`, {
+          method: 'POST', headers: authHeaders(),
+          body: JSON.stringify({ name: name.trim(), code, price, tags: tagsStr }),
+        });
+        const data = await r.json();
+        if (data.error) showMsg(data.error, 'err');
+        else { showMsg(' Producto añadido', 'ok'); loadMenu(sel.menuId); }
+      } catch { showMsg('Error', 'err'); }
+    } else if (item) {
+      try {
+        await fetch(`${base}/api/admin/items/${item.id}`, {
+          method: 'PUT', headers: authHeaders(),
+          body: JSON.stringify({ name: item.name, code: item.code, price: item.price, tags: tagsStr }),
+        });
+        showMsg(' Producto actualizado', 'ok');
+        loadMenu(sel.menuId);
+      } catch { showMsg('Error', 'err'); }
+    }
+    setTagSelector(null);
+  };
+
+  // ── Render Tag Selector Modal ──
+  const renderTagSelector = () => {
+    if (!tagSelector) return null;
+    const current = tagSelector.item?.tags ? tagSelector.item.tags.split(',').filter(Boolean) : [];
+    const [selected, setSelected] = useState<string[]>(current);
+
+    return (
+      <div className="admin-overlay-simple" onClick={() => setTagSelector(null)}>
+        <div className="admin-modal-small" onClick={e => e.stopPropagation()}>
+          <div className="admin-header">
+            <i className="fas fa-tags"></i>
+            <h3>Seleccionar etiquetas</h3>
+            <button className="admin-close" onClick={() => setTagSelector(null)}>
+              <i className="fas fa-xmark"></i>
+            </button>
+          </div>
+          <div className="tag-selector-body">
+            <p style={{ fontSize: '0.8125rem', color: '#94a3b8', marginBottom: 12 }}>
+              Selecciona las etiquetas para este producto:
+            </p>
+            <div className="tag-grid">
+              {TAG_CONFIGS.map(t => {
+                const isOn = selected.includes(t.key);
+                return (
+                  <button
+                    key={t.key}
+                    className={`tag-pill ${isOn ? 'on' : 'off'}`}
+                    style={{
+                      background: isOn ? t.bg : '#1e293b',
+                      color: isOn ? t.color : '#64748b',
+                      border: isOn ? `2px solid ${t.color}` : '2px solid #334155',
+                    }}
+                    onClick={() => {
+                      if (isOn) setSelected(selected.filter(s => s !== t.key));
+                      else setSelected([...selected, t.key]);
+                    }}
+                  >
+                    <i className={`fas ${t.icon}`}></i> {t.label}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="tag-selector-actions">
+              <button className="menu-cancel-btn" onClick={() => setTagSelector(null)}>
+                Cancelar
+              </button>
+              <button
+                className="menu-save-btn"
+                onClick={() => handleSaveWithTags(selected)}
+              >
+                <i className="fas fa-check"></i> {tagSelector.mode === 'add' ? 'Crear producto' : 'Guardar cambios'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // ── Render ──
   return (
     <div className="admin-menus">
       {msg && <div className={`ban-msg ${msgType === 'ok' ? 'ban-msg-ok' : 'ban-msg-err'}`} style={{ marginBottom: 12 }}>{msg}</div>}
+      {renderTagSelector()}
 
       {/* ── List View ── */}
       {!editingMenu && (

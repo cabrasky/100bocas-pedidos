@@ -137,12 +137,12 @@ MENU = {
     {"name": "Helado - cono"}, {"name": "Helado - sándwich"},
   ]},
   "bebidas": {"items": [
-    {"name": "Fanta", "price": "2€"}, {"name": "CocaCola 0", "price": "2€"},
-    {"name": "Quijote Cerveza", "price": "2,50€"}, {"name": "Sancho de Tinto", "price": "2€"},
+    {"name": "Fanta", "price": 2.0}, {"name": "CocaCola 0", "price": 2.0},
+    {"name": "Quijote Cerveza", "price": 2.5}, {"name": "Sancho de Tinto", "price": 2.0},
   ]},
   "extras": {"items": [
-    {"name": "Añade extra bacon ahumado", "price": "+0,50€"},
-    {"name": "Añade extra salsa", "price": "+0,30€"},
+    {"name": "Añade extra bacon ahumado", "price": 0.5},
+    {"name": "Añade extra salsa", "price": 0.3},
   ]},
 }
 
@@ -218,7 +218,7 @@ async def seed():
                 for item_idx, item in enumerate(cat_data.get("items", [])):
                     price = item.get("price") or cat_price or ""
                     await conn.execute(
-                        "INSERT INTO menu_items (category_id, code, name, ingredients, price, sort_order) VALUES ($1, $2, $3, $4, $5, $6)",
+                        "INSERT INTO menu_items (category_id, code, name, ingredients, price, sort_order) VALUES ($1, $2, $3, $4, $5::NUMERIC(10,2), $6)",
                         cat_id, item.get("code", ""), item["name"], item.get("ingredients", ""), price, item_idx
                     )
         
