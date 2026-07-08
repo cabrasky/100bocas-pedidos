@@ -44,6 +44,7 @@ function OrderPage() {
   const [placingOrder, setPlacingOrder] = useState(false);
   const wsRef = useRef<SessionWebSocket | null>(null);
   const prevPersonsRef = useRef<Person[]>([]);
+  const sessionValidationTimeRef = useRef<{ code: string; timestamp: number } | null>(null);
 
   const addToast = useCallback((message: string, type: Toast['type'], duration = 3500) => {
     const id = ++toastId;
@@ -100,6 +101,9 @@ function OrderPage() {
     setMyName(name);
     setSessionCookie(code, name);
     setLoading(false);
+    
+    // Record session validation time to prevent race conditions
+    sessionValidationTimeRef.current = { code, timestamp: Date.now() };
 
     const ws = new SessionWebSocket(
       code,
@@ -118,14 +122,20 @@ function OrderPage() {
       if (data.error) {
         clearSessionCookie();
         setLoading(false);
+        sessionValidationTimeRef.current = null;
         return;
       }
       if (data.people) {
         setPersons(data.people);
         const idx = Math.max(0, data.people.findIndex((p: any) => p.name === name));
         setCurrentPersonIdx(idx < 0 ? 0 : idx);
+        // Store validation timestamp to prevent race conditions
+        sessionValidationTimeRef.current = { code, timestamp: Date.now() };
       }
-    } catch { /* ignore */ }
+    } catch (error) {
+      console.warn(`[loadSession] Error loading session ${code}:`, error);
+      sessionValidationTimeRef.current = null;
+    }
   }, []);
 
   // Handle login
