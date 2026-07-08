@@ -203,6 +203,17 @@ function LandingPage() {
               {' · '}
               <a href="https://github.com/cabrasky/100bocas-pedidos/issues" target="_blank" rel="noopener">Sugerir mejora</a>
             </p>
+            <div className="landing-footer-divider" style={{ marginTop: 12 }} />
+            <p style={{ marginTop: 8 }}>
+              <a
+                href="https://ko-fi.com/cabrasky"
+                target="_blank"
+                rel="noopener"
+                className="kofi-button"
+              >
+                <i className="fas fa-mug-hot" /> Invítame a un café
+              </a>
+            </p>
           </div>
 
           <div className="landing-footer-divider" />

@@ -173,6 +173,14 @@
 .landing-oss-box p { margin: 0.25rem 0; color: #94a3b8; }
 .landing-oss-box a { color: #6ee7b7; font-weight: 600; }
 .landing-oss-box a:hover { text-decoration: underline; }
+.kofi-button {
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  background: #ff5e5b; color: #fff !important; padding: 0.5rem 1.25rem;
+  border-radius: 2rem; font-size: 0.875rem; font-weight: 700;
+  transition: background 0.15s, transform 0.15s;
+}
+.kofi-button:hover { background: #cc4a48 !important; text-decoration: none !important; transform: scale(1.02); }
+.kofi-button i { font-size: 1rem; }
 
 /* ── Screenshots ── */
 .landing-screenshots-section {
