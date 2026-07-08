@@ -47,3 +47,4 @@ banned_ips.json
 
 # ── Docker ──────────────────────────────────────────────────
 docker-compose.override.yml
+scripts/menu-data.yaml

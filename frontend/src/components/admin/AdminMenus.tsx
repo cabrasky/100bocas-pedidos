@@ -35,7 +35,12 @@ function AdminMenus({ authHeaders, base }: Props) {
   const [newDesc, setNewDesc] = useState('');
   const [editingMenu, setEditingMenu] = useState<MenuDetail | null>(null);
   const [schMsg, setSchMsg] = useState('');
-  const [tagSelector, setTagSelector] = useState<{ item?: ItemData; catId: number; menuId: number; mode: 'add' | 'edit' } | null>(null);
+  const [itemEditor, setItemEditor] = useState<{
+    mode: 'add' | 'edit';
+    catId: number;
+    menuId: number;
+    item?: ItemData;
+  } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -183,25 +188,13 @@ function AdminMenus({ authHeaders, base }: Props) {
     } catch { showMsg('Error', 'err'); }
   };
 
-  // ── Item CRUD ──
-  const handleAddItem = async (catId: number, menuId: number) => {
-    const name = prompt('Nombre del producto:');
-    if (!name?.trim()) return;
-    const code = prompt('Código (opcional, ej: 01):') || '';
-    const priceStr = prompt('Precio (opcional, ej: 1.50):') || '0';
-    const price = parseFloat(priceStr.replace(',', '.')) || 0;
-    setTagSelector({ catId, menuId, mode: 'add' });
-    // Tags selected via modal
+  // ── Item CRUD (modal-based) ──
+  const handleAddItem = (catId: number, menuId: number) => {
+    setItemEditor({ mode: 'add', catId, menuId });
   };
 
-  const handleEditItem = async (item: ItemData & { tags?: string }, catId: number, menuId: number) => {
-    const name = prompt('Nombre:', item.name);
-    if (!name?.trim()) return;
-    const code = prompt('Código:', item.code) || '';
-    const priceStr = prompt('Precio:', String(item.price ?? 0)) || '0';
-    const price = parseFloat(priceStr.replace(',', '.')) || 0;
-    setTagSelector({ item, catId, menuId, mode: 'edit' });
-    // Tags selected via modal
+  const handleEditItem = (item: ItemData, catId: number, menuId: number) => {
+    setItemEditor({ mode: 'edit', catId, menuId, item });
   };
 
   const handleDeleteItem = async (itemId: number, itemName: string, menuId: number) => {
@@ -213,84 +206,106 @@ function AdminMenus({ authHeaders, base }: Props) {
     } catch { showMsg('Error', 'err'); }
   };
 
+  // ── Render Item Editor Modal ──
+  const renderItemEditor = () => {
+    if (!itemEditor) return null;
+    const isEdit = itemEditor.mode === 'edit';
+    const i = itemEditor.item;
+    const [formName, setFormName] = useState(i?.name || '');
+    const [formCode, setFormCode] = useState(i?.code || '');
+    const [formPrice, setFormPrice] = useState(String(i?.price ?? ''));
+    const [allergensVal, setAllergensVal] = useState(i?.allergens || '');
 
-  // ── Tag Selector Modal (allergens-based, tags are computed) ──
-  const handleSaveWithTags = async (tags: string[], allergens: string) => {
-    const sel = tagSelector;
-    if (!sel) return;
-    const tagsStr = tags.join(',');
-    const item = sel.item;
-    if (sel.mode === 'add') {
-      const name = prompt('Confirma nombre:');
-      if (!name?.trim()) { setTagSelector(null); return; }
-      const code = prompt('Código (opcional):') || '';
-      const priceStr = prompt('Precio:', '1') || '0';
-      const price = parseFloat(priceStr.replace(',', '.')) || 0;
-      try {
-        const r = await fetch(`${base}/api/admin/categories/${sel.catId}/items`, {
-          method: 'POST', headers: authHeaders(),
-          body: JSON.stringify({ name: name.trim(), code, price, tags: tagsStr, allergens }),
-        });
-        const data = await r.json();
-        if (data.error) showMsg(data.error, 'err');
-        else { showMsg(' Producto añadido', 'ok'); loadMenu(sel.menuId); }
-      } catch { showMsg('Error', 'err'); }
-    } else if (item) {
-      try {
-        await fetch(`${base}/api/admin/items/${item.id}`, {
-          method: 'PUT', headers: authHeaders(),
-          body: JSON.stringify({ name: item.name, code: item.code, price: item.price, tags: tagsStr, allergens }),
-        });
-        showMsg(' Producto actualizado', 'ok');
-        loadMenu(sel.menuId);
-      } catch { showMsg('Error', 'err'); }
-    }
-    setTagSelector(null);
-  };
-
-  // ── Render Tag Selector Modal (allergens mode) ──
-  const renderTagSelector = () => {
-    if (!tagSelector) return null;
-    const currentTags = tagSelector.item?.tags ? tagSelector.item.tags.split(',').filter(Boolean) : [];
-    const currentAllergens = tagSelector.item?.allergens || '';
-    const [selected, setSelected] = useState<string[]>(currentTags);
-    const [allergensVal, setAllergensVal] = useState<string>(currentAllergens);
-    // Compute which tags would result from current allergens
+    // Compute tags preview from current allergens
     const allergenSet = new Set(allergensVal.split(',').map(a => a.trim().toLowerCase()).filter(Boolean));
-    const computedTags: { key: string; label: string; icon: string; bg: string; color: string; active: boolean }[] = [];
+
+    const handleSave = async () => {
+      if (!formName.trim()) return;
+      const price = parseFloat(formPrice.replace(',', '.')) || 0;
+      const payload = {
+        name: formName.trim(),
+        code: formCode,
+        price,
+        tags: '',  // backend computes tags from allergens
+        allergens: allergensVal,
+      };
+      try {
+        if (isEdit && i) {
+          const r = await fetch(`${base}/api/admin/items/${i.id}`, {
+            method: 'PUT', headers: authHeaders(),
+            body: JSON.stringify(payload),
+          });
+          const data = await r.json();
+          if (data.error) { showMsg(data.error, 'err'); return; }
+          showMsg(' Producto actualizado', 'ok');
+        } else {
+          const r = await fetch(`${base}/api/admin/categories/${itemEditor.catId}/items`, {
+            method: 'POST', headers: authHeaders(),
+            body: JSON.stringify(payload),
+          });
+          const data = await r.json();
+          if (data.error) { showMsg(data.error, 'err'); return; }
+          showMsg(' Producto añadido', 'ok');
+        }
+        setItemEditor(null);
+        loadMenu(itemEditor.menuId);
+      } catch { showMsg('Error al guardar', 'err'); }
+    };
 
     return (
-      <div className="admin-overlay-simple" onClick={() => setTagSelector(null)}>
+      <div className="admin-overlay-simple" onClick={() => setItemEditor(null)}>
         <div className="admin-modal-small" onClick={e => e.stopPropagation()}>
           <div className="admin-header">
-            <i className="fas fa-tags"></i>
-            <h3>Alérgenos y etiquetas</h3>
-            <button className="admin-close" onClick={() => setTagSelector(null)}>
+            <i className="fas fa-utensils"></i>
+            <h3>{isEdit ? 'Editar producto' : 'Nuevo producto'}</h3>
+            <button className="admin-close" onClick={() => setItemEditor(null)}>
               <i className="fas fa-xmark"></i>
             </button>
           </div>
           <div className="tag-selector-body">
-            <p style={{ fontSize: '0.8125rem', color: '#94a3b8', marginBottom: 8 }}>
-              Introduce los <strong>alérgenos/ingredientes</strong> que contiene el producto (separados por coma):
-            </p>
+
+            <label style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, display: 'block', marginBottom: 4 }}>Nombre *</label>
             <input
-              type="text"
-              className="menu-input"
-              placeholder="ej: huevo, lactosa, gluten"
-              value={allergensVal}
-              onChange={e => setAllergensVal(e.target.value)}
-              style={{ marginBottom: 12 }}
+              type="text" className="menu-input" placeholder="Nombre del producto"
+              value={formName} onChange={e => setFormName(e.target.value)}
+              autoFocus style={{ marginBottom: 10 }}
             />
-            <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginBottom: 8 }}>
-              Códigos disponibles: huevo, lactosa, gluten, carne, pescado, marisco, miel, frutos_secos, soja, mostaza, apio, cacahuete, sésamo, moluscos, altramuz, sulfitos, nata, queso, mantequilla, harina, pan
+
+            <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, display: 'block', marginBottom: 4 }}>Código</label>
+                <input
+                  type="text" className="menu-input" placeholder="ej: 01"
+                  value={formCode} onChange={e => setFormCode(e.target.value)}
+                />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, display: 'block', marginBottom: 4 }}>Precio (€)</label>
+                <input
+                  type="text" className="menu-input" placeholder="ej: 1.50"
+                  value={formPrice} onChange={e => setFormPrice(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <label style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, display: 'block', marginBottom: 4 }}>
+              Alérgenos que contiene <span style={{ fontWeight: 400, color: '#94a3b8' }}>(separados por coma)</span>
+            </label>
+            <input
+              type="text" className="menu-input"
+              placeholder="ej: huevo, lactosa, gluten"
+              value={allergensVal} onChange={e => setAllergensVal(e.target.value)}
+              style={{ marginBottom: 8 }}
+            />
+            <p style={{ fontSize: '0.65rem', color: '#94a3b8', marginBottom: 12, lineHeight: 1.4 }}>
+              Códigos: huevo, lactosa, gluten, carne, pescado, marisco, miel, frutos_secos, soja, mostaza, apio, cacahuete, sésamo, moluscos, altramuz, sulfitos, nata, queso, mantequilla, harina, pan
             </p>
 
-            <p style={{ fontSize: '0.8125rem', color: '#64748b', marginBottom: 8, fontWeight: 600 }}>
+            <p style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, marginBottom: 8 }}>
               Etiquetas calculadas automáticamente:
             </p>
-            <div className="tag-grid" style={{ marginBottom: 12 }}>
+            <div className="tag-grid" style={{ marginBottom: 16 }}>
               {TAG_CONFIGS.map(t => {
-                // Check if this tag is excluded by current allergens
                 let excluded = false;
                 if (t.key === 'vegetarian') excluded = ['carne','pescado','marisco'].some(a => allergenSet.has(a));
                 else if (t.key === 'vegan') excluded = ['carne','pescado','marisco','huevo','lactosa','miel','nata','queso','mantequilla'].some(a => allergenSet.has(a));
@@ -299,15 +314,12 @@ function AdminMenus({ authHeaders, base }: Props) {
                 else if (t.key === 'without-lactose') excluded = ['lactosa','nata','queso','mantequilla'].some(a => allergenSet.has(a));
                 const active = !excluded;
                 return (
-                  <span
-                    key={t.key}
-                    className={`tag-pill ${active ? 'on' : 'off'}`}
+                  <span key={t.key} className={`tag-pill ${active ? 'on' : 'off'}`}
                     style={{
-                      opacity: active ? 1 : 0.4,
+                      opacity: active ? 1 : 0.4, cursor: 'default',
                       background: active ? t.bg : '#1e293b',
                       color: active ? t.color : '#64748b',
                       border: active ? `2px solid ${t.color}` : '2px solid #334155',
-                      cursor: 'default',
                     }}
                   >
                     <i className={`fas ${t.icon}`}></i> {t.label}
@@ -318,14 +330,11 @@ function AdminMenus({ authHeaders, base }: Props) {
             </div>
 
             <div className="tag-selector-actions">
-              <button className="menu-cancel-btn" onClick={() => setTagSelector(null)}>
+              <button className="menu-cancel-btn" onClick={() => setItemEditor(null)}>
                 Cancelar
               </button>
-              <button
-                className="menu-save-btn"
-                onClick={() => handleSaveWithTags(selected, allergensVal)}
-              >
-                <i className="fas fa-check"></i> {tagSelector.mode === 'add' ? 'Crear producto' : 'Guardar cambios'}
+              <button className="menu-save-btn" onClick={handleSave} disabled={!formName.trim()}>
+                <i className="fas fa-check"></i> {isEdit ? 'Guardar cambios' : 'Crear producto'}
               </button>
             </div>
           </div>
@@ -338,7 +347,7 @@ function AdminMenus({ authHeaders, base }: Props) {
   return (
     <div className="admin-menus">
       {msg && <div className={`ban-msg ${msgType === 'ok' ? 'ban-msg-ok' : 'ban-msg-err'}`} style={{ marginBottom: 12 }}>{msg}</div>}
-      {renderTagSelector()}
+      {renderItemEditor()}
 
       {/* ── List View ── */}
       {!editingMenu && (
