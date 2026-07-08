@@ -161,11 +161,77 @@ async def periodic_cleanup():
             print(f"[cleanup] Error: {exc}")
 
 
-# Migration: add tags column to menu_items (safe re-run)
-async def _ensure_tags_column():
+# ── Schema migrations (Liquibase-style) ─────────────
+MIGRATIONS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "migrations")
+
+
+async def _ensure_schema_migrations_table():
     assert pool
     async with pool.acquire() as conn:
-        await conn.execute("ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS tags TEXT DEFAULT ''")
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS schema_migrations (
+                version     VARCHAR(20) PRIMARY KEY,
+                filename    TEXT NOT NULL,
+                description TEXT DEFAULT '',
+                applied_at  TIMESTAMP DEFAULT now()
+            )
+        """)
+
+
+async def run_migrations():
+    """Apply pending SQL migrations in order."""
+    assert pool
+    await _ensure_schema_migrations_table()
+
+    if not os.path.isdir(MIGRATIONS_DIR):
+        print(f"[migrate] No migrations directory found at {MIGRATIONS_DIR}")
+        return
+
+    files = sorted(f for f in os.listdir(MIGRATIONS_DIR) if f.endswith(".sql"))
+    if not files:
+        print("[migrate] No migration files found")
+        return
+
+    async with pool.acquire() as conn:
+        applied_rows = await conn.fetch("SELECT version FROM schema_migrations")
+        applied = {r["version"] for r in applied_rows}
+
+    for fname in files:
+        version = fname.split("_", 1)[0] if "_" in fname else fname.replace(".sql", "")
+        if version in applied:
+            continue
+
+        path = os.path.join(MIGRATIONS_DIR, fname)
+        with open(path) as f:
+            sql = f.read()
+
+        # Extract description from SQL comment
+        desc = ""
+        for line in sql.split("\n"):
+            if line.strip().startswith("-- Description:"):
+                desc = line.split(":", 1)[1].strip()
+                break
+
+        # Extract just the Up section
+        up_sql = sql.split("-- Down")[0] if "-- Down" in sql else sql
+        # Remove comment lines for execution
+        up_clean = "\n".join(
+            line for line in up_sql.split("\n")
+            if not line.strip().startswith("--") and not line.strip().startswith("/*")
+        )
+
+        try:
+            async with pool.acquire() as conn:
+                async with conn.transaction():
+                    await conn.execute(up_clean)
+                    await conn.execute(
+                        "INSERT INTO schema_migrations (version, filename, description) VALUES ($1, $2, $3)",
+                        version, fname, desc,
+                    )
+            print(f"[migrate] ✓ {fname} — {desc or version}")
+        except Exception as e:
+            print(f"[migrate] ✗ {fname} FAILED: {e}")
+            raise
 
 
 # ── Admin auth ────────────────────────────────────
@@ -212,7 +278,7 @@ async def lifespan(_app: FastAPI):
     global pool, _cleanup_task
     pool = await asyncpg.create_pool(DB_DSN, min_size=2, max_size=10)
     _cleanup_task = asyncio.create_task(periodic_cleanup())
-    await _ensure_tags_column()
+    await run_migrations()
     print(f"[server] Security: RPM={MAX_REQUESTS_PER_MIN}, WS/IP={MAX_WS_PER_IP}, "
           f"WS/session={MAX_WS_PER_SESSION}, WS total={MAX_WS_TOTAL}")
     yield
