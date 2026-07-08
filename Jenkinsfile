@@ -18,6 +18,11 @@ pipeline {
             defaultValue: false,
             description: 'Force deploy even if same tag already exists'
         )
+        booleanParam(
+            name: 'FORCE_PRODUCTION',
+            defaultValue: false,
+            description: 'Force deploy as production (ignore branch name, deploy to bocas namespace)'
+        )
     }
 
     stages {
@@ -30,11 +35,41 @@ pipeline {
         stage('Read Version') {
             steps {
                 script {
-                    def pkg = sh(script: "python3 -c 'import json; print(json.load(open(\"frontend/package.json\"))[\"version\"])'", returnStdout: true).trim()
+                    def pkg = sh(script: "python3 -c 'import json; print(json.load(open(\\\"frontend/package.json\\\"))[\\\"version\\\"])'", returnStdout: true).trim()
                     env.APP_VERSION = pkg
                     env.GIT_SHORT = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
-                    env.IMAGE_TAG = "${env.APP_VERSION}-${env.GIT_SHORT}"
-                    echo "Version: ${env.APP_VERSION} (tag: ${env.IMAGE_TAG})"
+                }
+            }
+        }
+
+        stage('Detect Branch Type') {
+            steps {
+                script {
+                    env.BRANCH_NAME = env.BRANCH_NAME ?: sh(script: 'git rev-parse --abbrev-ref HEAD', returnStdout: true).trim()
+                    env.IS_MAIN = (env.BRANCH_NAME == 'main').toString()
+                    echo "Branch: ${env.BRANCH_NAME} (is_main: ${env.IS_MAIN})"
+
+                    if (params.FORCE_PRODUCTION) {
+                        env.IS_MAIN = 'true'
+                        echo "→ FORCE_PRODUCTION=true — deploying as production"
+                    }
+
+                    if (env.IS_MAIN == 'true') {
+                        env.DEPLOY_NAMESPACE = 'bocas'
+                        env.IMAGE_TAG = "${env.APP_VERSION}-${env.GIT_SHORT}"
+                    } else {
+                        // Sanitize branch name for k8s (lowercase, alphanumeric + hyphens)
+                        env.BRANCH_SAFE = sh(
+                            script: """echo "${env.BRANCH_NAME}" | sed 's/[^a-zA-Z0-9]/-/g' | sed 's/--*/-/g' | sed 's/^-//;s/-$//' | tr '[:upper:]' '[:lower:]'""",
+                            returnStdout: true
+                        ).trim()
+                        env.DEPLOY_NAMESPACE = "bocas-branch-${env.BRANCH_SAFE}"
+                        env.IMAGE_TAG = "${env.APP_VERSION}-${env.BRANCH_SAFE}"
+                        echo "→ Branch deployment: ${env.BRANCH_NAME}"
+                        echo "  Safe name:     ${env.BRANCH_SAFE}"
+                        echo "  Namespace:     ${env.DEPLOY_NAMESPACE}"
+                        echo "  Image tag:     ${env.IMAGE_TAG}"
+                    }
                 }
             }
         }
@@ -86,9 +121,11 @@ pipeline {
                     steps {
                         script {
                             sh "docker build -t ${BACKEND_IMAGE}:${IMAGE_TAG} -f Dockerfile.backend ."
-                            sh "docker tag ${BACKEND_IMAGE}:${IMAGE_TAG} ${BACKEND_IMAGE}:latest"
                             sh "docker push ${BACKEND_IMAGE}:${IMAGE_TAG}"
-                            sh "docker push ${BACKEND_IMAGE}:latest"
+                            if (env.IS_MAIN == 'true') {
+                                sh "docker tag ${BACKEND_IMAGE}:${IMAGE_TAG} ${BACKEND_IMAGE}:latest"
+                                sh "docker push ${BACKEND_IMAGE}:latest"
+                            }
                         }
                     }
                 }
@@ -96,9 +133,11 @@ pipeline {
                     steps {
                         script {
                             sh "docker build -t ${FRONTEND_IMAGE}:${IMAGE_TAG} -f Dockerfile.frontend ."
-                            sh "docker tag ${FRONTEND_IMAGE}:${IMAGE_TAG} ${FRONTEND_IMAGE}:latest"
                             sh "docker push ${FRONTEND_IMAGE}:${IMAGE_TAG}"
-                            sh "docker push ${FRONTEND_IMAGE}:latest"
+                            if (env.IS_MAIN == 'true') {
+                                sh "docker tag ${FRONTEND_IMAGE}:${IMAGE_TAG} ${FRONTEND_IMAGE}:latest"
+                                sh "docker push ${FRONTEND_IMAGE}:latest"
+                            }
                         }
                     }
                 }
@@ -109,23 +148,52 @@ pipeline {
             steps {
                 dir('k8s') {
                     script {
-                        // Update image tags in kustomize overlay
-                        sh """
-                            cd overlays/production
-                            kustomize edit set image PLACEHOLDER_BACKEND=${BACKEND_IMAGE}:${IMAGE_TAG}
-                            kustomize edit set image PLACEHOLDER_FRONTEND=${FRONTEND_IMAGE}:${IMAGE_TAG}
-                        """
-                        // Create secret only if it doesn't exist — never overwrite existing
-                        sh '''
-                            if ! kubectl get secret bocas-secrets -n bocas 2>/dev/null; then
-                                echo "→ Creating bocas-secrets from base/secrets.yaml..."
-                                kubectl apply -f ../base/secrets.yaml
-                            else
-                                echo "✓ bocas-secrets already exists — keeping existing values"
-                            fi
-                        '''
-                        // Apply to cluster (kustomization no longer includes secrets.yaml)
-                        sh 'kubectl apply -k overlays/production'
+                        if (env.IS_MAIN == 'true') {
+                            // ── PRODUCTION DEPLOYMENT ──
+                            sh """
+                                cd overlays/production
+                                kustomize edit set image PLACEHOLDER_BACKEND=${BACKEND_IMAGE}:${IMAGE_TAG}
+                                kustomize edit set image PLACEHOLDER_FRONTEND=${FRONTEND_IMAGE}:${IMAGE_TAG}
+                            """
+                            // Create secret only if it doesn't exist — never overwrite existing
+                            sh '''
+                                if ! kubectl get secret bocas-secrets -n bocas 2>/dev/null; then
+                                    echo "→ Creating bocas-secrets from base/secrets.yaml..."
+                                    kubectl apply -f ../base/secrets.yaml
+                                else
+                                    echo "✓ bocas-secrets already exists — keeping existing values"
+                                fi
+                            '''
+                            sh 'kubectl apply -k overlays/production'
+                        } else {
+                            // ── BRANCH / PREVIEW DEPLOYMENT ──
+                            def safeName = env.BRANCH_SAFE
+                            def deployNs = env.DEPLOY_NAMESPACE
+                            sh """
+                                # Generate branch kustomization with actual values
+                                cat overlays/branch/kustomization.yaml \\
+                                  | sed 's/PLACEHOLDER_BRANCH/${safeName}/g' \\
+                                  | sed 's|PLACEHOLDER_BRANCH_TAG|${IMAGE_TAG}|g' \\
+                                  > overlays/branch/kustomization.yaml.generated
+
+                                # Create namespace + secrets if needed
+                                kubectl get namespace ${deployNs} 2>/dev/null || \\
+                                  kubectl create namespace ${deployNs}
+
+                                if ! kubectl get secret bocas-secrets -n ${deployNs} 2>/dev/null; then
+                                    echo "→ Creating bocas-secrets in ${deployNs}..."
+                                    kubectl apply -f ../base/secrets.yaml -n ${deployNs}
+                                else
+                                    echo "✓ bocas-secrets already exists in ${deployNs}"
+                                fi
+
+                                # Deploy branch (use generated kustomization)
+                                mv overlays/branch/kustomization.yaml.generated overlays/branch/kustomization.yaml
+                                kubectl apply -k overlays/branch
+
+                                echo "✅ Branch ${BRANCH_NAME} deployed to ${deployNs}"
+                            """
+                        }
                     }
                 }
             }
@@ -136,20 +204,28 @@ pipeline {
                 script {
                     def timeoutSeconds = 120
                     def success = true
+                    def ns = env.DEPLOY_NAMESPACE
+                    echo "→ Verifying rollout in namespace: ${ns}"
                     for (deploy in ['bocas-backend', 'bocas-frontend', 'bocas-db']) {
                         try {
                             sh """
-                                kubectl rollout status deployment/${deploy} -n bocas \
+                                kubectl rollout status deployment/${deploy} -n ${ns} \
                                     --timeout=${timeoutSeconds}s
                             """
-                            echo "✓ ${deploy} rollout complete"
+                            echo "✓ ${deploy} rollout complete (${ns})"
                         } catch (err) {
-                            echo "✗ ${deploy} rollout failed!"
+                            echo "✗ ${deploy} rollout failed in ${ns}!"
                             success = false
                         }
                     }
                     if (!success) {
                         error "One or more deployments failed to roll out"
+                    }
+
+                    // For branches, show the preview URL
+                    if (env.IS_MAIN != 'true') {
+                        def url = "http://branch-${env.BRANCH_SAFE}.100bocas.cabrasky.net"
+                        echo "✅ Branch deployed at: ${url}"
                     }
                 }
             }
@@ -164,7 +240,14 @@ pipeline {
             echo '❌ Pipeline failed — check logs'
         }
         success {
-            echo '✅ 100Bocas deployed successfully'
+            script {
+                if (env.IS_MAIN == 'true') {
+                    echo '✅ 100Bocas production deployed successfully'
+                } else {
+                    echo "✅ 100Bocas branch '${env.BRANCH_NAME}' deployed to ${env.DEPLOY_NAMESPACE}"
+                    echo "   URL: http://branch-${env.BRANCH_SAFE}.100bocas.cabrasky.net"
+                }
+            }
         }
     }
 }
