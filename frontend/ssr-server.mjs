@@ -17,6 +17,12 @@ const FASTAPI_URL = process.env.FASTAPI_URL || 'http://localhost:8112';
 global.window = global.window || {
   document: {
     documentElement: { style: {} },
+    head: {
+      querySelector: () => null,
+      querySelectorAll: () => [],
+      appendChild: () => {},
+      removeChild: () => {},
+    },
     createElement: () => ({ setAttribute: () => {}, className: '', style: {} }),
     createTextNode: () => ({}),
     getElementsByTagName: () => [],
