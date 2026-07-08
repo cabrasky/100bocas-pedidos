@@ -2,14 +2,12 @@ import { useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import AdminLogin from '../components/admin/AdminLogin';
 import AdminStats from '../components/admin/AdminStats';
-import AdminBans from '../components/admin/AdminBans';
 import AdminMenus from '../components/admin/AdminMenus';
 
 type TabId = 'stats' | 'bans' | 'menus';
 
 const TABS: { id: TabId; icon: string; label: string }[] = [
   { id: 'stats', icon: 'fa-chart-simple', label: 'Estadísticas' },
-  { id: 'bans', icon: 'fa-shield-halved', label: 'IPs Bloqueadas' },
   { id: 'menus', icon: 'fa-book', label: 'Cartas' },
 ];
 
@@ -92,7 +90,6 @@ function AdminPage() {
             {/* Tab content */}
             <div className="admin-content">
               {tab === 'stats' && <AdminStats authHeaders={authHeaders} base={base} />}
-              {tab === 'bans' && <AdminBans authHeaders={authHeaders} base={base} />}
               {tab === 'menus' && <AdminMenus authHeaders={authHeaders} base={base} />}
             </div>
           </>

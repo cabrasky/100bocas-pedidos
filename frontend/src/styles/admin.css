@@ -397,82 +397,6 @@
 .admin-footer-bar a:hover { color: #6ee7b7; }
 .admin-footer-bar i { color: #475569; }
 
-/* ── Ban Management ── */
-.ban-form { display: flex; flex-direction: column; gap: 0.5rem; }
-.ban-input {
-  padding: 0.625rem 0.875rem; border: 0.0938rem solid #334155; border-radius: 0.625rem;
-  font-size: 0.8125rem; font-family: 'JetBrains Mono', 'Courier New', monospace;
-  outline: none; transition: border-color .15s; background: #0f172a;
-  color: #e2e8f0;
-}
-.ban-input:focus { border-color: #6ee7b7; }
-.ban-input-reason { font-family: inherit; }
-.ban-btn {
-  padding: 0.625rem 1.25rem; border: none; border-radius: 0.625rem;
-  background: #dc2626; color: #fff; font-weight: 600; font-size: 0.8125rem;
-  cursor: pointer; font-family: inherit; transition: background .15s;
-  display: flex; align-items: center; gap: 0.5rem; justify-content: center;
-}
-.ban-btn:hover { background: #b91c1c; }
-.ban-btn:disabled { opacity: .4; cursor: not-allowed; }
-.ban-msg {
-  margin-top: 0.625rem; padding: 0.5rem 0.875rem; border-radius: 0.5rem;
-  font-size: 0.75rem; font-weight: 600;
-}
-.ban-msg-ok { background: #064e3b; color: #6ee7b7; }
-.ban-msg-err { background: #450a0a; color: #fca5a5; }
-.ban-desc {
-  font-size: 0.75rem; color: #64748b; margin-top: 0.5rem;
-  display: flex; align-items: flex-start; gap: 0.375rem; line-height: 1.5;
-}
-.ban-desc i { margin-top: 0.125rem; flex-shrink: 0; }
-.ban-check-btn {
-  padding: 0.625rem 1.125rem; border: 0.0938rem solid #334155; border-radius: 0.625rem;
-  background: #0f172a; color: #94a3b8; font-weight: 600; font-size: 0.8125rem;
-  cursor: pointer; font-family: inherit; transition: all .15s;
-  display: inline-flex; align-items: center; gap: 0.5rem;
-}
-.ban-check-btn:hover { border-color: #6ee7b7; color: #6ee7b7; background: #064e3b; }
-.ban-check-result {
-  margin-top: 0.625rem; padding: 0.625rem 0.875rem; border-radius: 0.625rem;
-  font-size: 0.8125rem; display: flex; flex-direction: column; gap: 0.375rem;
-}
-.ban-check-result.banned { background: #450a0a; border: 0.0625rem solid #7f1d1d; color: #fca5a5; }
-.ban-check-result.not-banned { background: #064e3b; border: 0.0625rem solid #065f46; color: #6ee7b7; }
-.ban-check-ip { font-size: 0.6875rem; color: #64748b; }
-.ban-check-ip code {
-  background: #1e293b; padding: 0.0625rem 0.375rem; border-radius: 0.25rem;
-  font-size: 0.6875rem; font-family: monospace; color: #e2e8f0;
-}
-.ban-count {
-  background: #dc2626; color: #fff; font-size: 0.625rem; font-weight: 700;
-  padding: 0.0625rem 0.4375rem; border-radius: 6.25rem; margin-left: 0.25rem;
-}
-.ban-list { display: flex; flex-direction: column; gap: 0.5rem; }
-.ban-item {
-  display: flex; align-items: center; gap: 0.75rem;
-  padding: 0.75rem 0.875rem; border-radius: 0.75rem; border: 0.0625rem solid #334155;
-  background: #0f172a; transition: box-shadow .15s;
-}
-.ban-item:hover { box-shadow: 0 2px 8px rgba(0,0,0,.3); }
-.ban-item.auto { border-left: 0.1875rem solid #f59e0b; }
-.ban-item.manual { border-left: 0.1875rem solid #dc2626; }
-.ban-item-left { flex: 1; display: flex; flex-direction: column; gap: 0.1875rem; min-width: 0; }
-.ban-ip code {
-  font-size: 0.8125rem; font-weight: 700; color: #f1f5f9;
-  font-family: 'JetBrains Mono', 'Courier New', monospace;
-  background: #1e293b; padding: 0.125rem 0.5rem; border-radius: 0.3125rem;
-}
-.ban-reason { font-size: 0.75rem; color: #94a3b8; }
-.ban-meta { font-size: 0.6875rem; color: #475569; display: flex; align-items: center; gap: 0.25rem; }
-.ban-meta i { font-size: 0.625rem; }
-.ban-unban-btn {
-  background: none; border: 0.0625rem solid #334155; border-radius: 0.5rem;
-  width: 2.125rem; height: 2.125rem; cursor: pointer; font-size: 0.875rem;
-  color: #6ee7b7; display: flex; align-items: center; justify-content: center;
-  transition: all .15s; flex-shrink: 0;
-}
-.ban-unban-btn:hover { background: #064e3b; border-color: #6ee7b7; }
 
 /* ── Menu Manager (dark theme) ── */
 .admin-menus { padding: 0; }
@@ -570,10 +494,21 @@
   .menu-card { flex-direction: column; gap: 0.5rem; padding: 0.75rem; }
   .menu-card-right { align-self: flex-end; }
   .menu-active-label { font-size: 0.625rem; padding: 0.1875rem 0.5rem; }
-  .ban-form { gap: 0.375rem; }
-  .ban-item { flex-direction: column; gap: 0.5rem; padding: 0.625rem 0.75rem; }
-  .ban-item-left { width: 100%; }
-  .ban-unban-btn { align-self: flex-end; }
+
   .admin-hourly-grid { height: 5rem; }
   .hour-label { font-size: 0.4375rem; }
 }
+/* ── Shared notification (reused by AdminMenus) ── */
+.ban-empty, .notif-empty {
+  font-size: 0.8125rem;
+  color: #64748b;
+  padding: 0.375rem 0;
+}
+.ban-msg, .notif-msg {
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.375rem;
+  font-size: 0.75rem;
+  margin-top: 0.375rem;
+}
+.ban-msg-ok, .notif-msg-ok { background: #064e3b; color: #6ee7b7; }
+.ban-msg-err, .notif-msg-err { background: #450a0a; color: #fca5a5; }

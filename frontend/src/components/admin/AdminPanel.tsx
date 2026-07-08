@@ -1,7 +1,6 @@
 import { useState, useCallback } from 'react';
 import AdminLogin from './AdminLogin';
 import AdminStats from './AdminStats';
-import AdminBans from './AdminBans';
 import AdminMenus from './AdminMenus';
 
 interface Props {
@@ -10,7 +9,7 @@ interface Props {
 
 function AdminPanel({ onClose }: Props) {
   const [token, setToken] = useState<string | null>(null);
-  const [tab, setTab] = useState<'stats' | 'bans' | 'menus'>('stats');
+  const [tab, setTab] = useState<'stats' | 'menus'>('stats');
 
   const base = window.location.origin;
 
@@ -40,9 +39,6 @@ function AdminPanel({ onClose }: Props) {
               <button className={`admin-tab ${tab === 'stats' ? 'active' : ''}`} onClick={() => setTab('stats')}>
                 <i className="fas fa-chart-simple"></i> Estadísticas
               </button>
-              <button className={`admin-tab ${tab === 'bans' ? 'active' : ''}`} onClick={() => setTab('bans')}>
-                <i className="fas fa-shield-halved"></i> IPs Bloqueadas
-              </button>
               <button className={`admin-tab ${tab === 'menus' ? 'active' : ''}`} onClick={() => setTab('menus')}>
                 <i className="fas fa-book"></i> Cartas
               </button>
@@ -53,7 +49,6 @@ function AdminPanel({ onClose }: Props) {
 
             <div className="admin-body">
               {tab === 'stats' && <AdminStats authHeaders={authHeaders} base={base} />}
-              {tab === 'bans' && <AdminBans authHeaders={authHeaders} base={base} />}
               {tab === 'menus' && <AdminMenus authHeaders={authHeaders} base={base} />}
             </div>
           </>

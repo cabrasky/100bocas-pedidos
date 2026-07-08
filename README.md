@@ -146,51 +146,6 @@ node ../ssr-server.mjs
 | `BOCAS_AUTO_BAN_DURATION` | Duración del auto-ban (segundos) | `86400` (24h) |
 | `BOCAS_TRUSTED_PROXIES` | CIDRs de proxies confiables | `192.168.0.0/16,...` |
 
-## Seguridad: IP Blocking
-
-El servidor incluye un sistema de bloqueo de IPs basado en **PostgreSQL** (tabla `banned_ips`).
-
-### Tipos de bloqueo
-
-- **Manual** — Desde el panel admin (`POST /api/admin/bans`) con la contraseña de administrador.
-- **Auto-ban** — Tras `BOCAS_AUTO_BAN_THRESHOLD` violaciones de rate limit en 10 minutos, la IP se bloquea automáticamente durante `BOCAS_AUTO_BAN_DURATION` segundos.
-- **Permanente** — Los bans manuales no expiran a menos que se eliminen explícitamente.
-
-### Gestión desde base de datos
-
-```sql
--- Ver todas las IPs bloqueadas
-SELECT ip, to_timestamp(banned_at) AS banned_at,
-       reason, auto_ban,
-       CASE WHEN expires_at IS NOT NULL
-            THEN to_timestamp(expires_at) END AS expires_at
-FROM banned_ips
-ORDER BY banned_at DESC;
-
--- Desbloquear una IP manualmente
-DELETE FROM banned_ips WHERE ip = '192.168.1.20';
-
--- Desbloquear todos los auto-bans expirados
-DELETE FROM banned_ips
-WHERE auto_ban = true AND expires_at IS NOT NULL AND expires_at < extract(epoch FROM now());
-
--- Ver cuántas veces ha bloqueado el auto-ban (histórico)
-SELECT count(*) AS total_auto_bans
-FROM banned_ips WHERE auto_ban = true;
-```
-
-### Gestión desde API (panel admin)
-
-| Método | Endpoint | Descripción |
-|--------|----------|-------------|
-| `GET` | `/api/admin/bans` | Lista todas las IPs bloqueadas |
-| `POST` | `/api/admin/bans` | Bloquear una IP manualmente |
-| `DELETE` | `/api/admin/bans/{ip}` | Desbloquear una IP |
-| `GET` | `/api/admin/bans/check` | Verificar si tu IP está bloqueada |
-
-### Cache en memoria
-
-Las IPs bloqueadas se cargan en una caché en memoria al arrancar el servidor y se refrescan automáticamente cuando se expulsan bans expirados (cada 5 minutos con la limpieza periódica). La comprobación de IP bloqueada en el middleware no toca la base de datos.
 
 ## Contribuciones
 
