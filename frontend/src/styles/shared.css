@@ -18,7 +18,7 @@ body {
   display: grid;
   gap: 0;
   min-height: 100vh;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: auto auto 1fr;
   /* Prevent intrinsic width from forcing overflow */
   min-width: 0;
 }
