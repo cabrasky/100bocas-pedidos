@@ -49,7 +49,7 @@ function AdminPanel({ onClose }: Props) {
 
             <div className="admin-body">
               {tab === 'stats' && <AdminStats authHeaders={authHeaders} base={base} />}
-              {tab === 'menus' && <AdminMenus authHeaders={authHeaders} base={base} />}
+              {tab === 'menus' && <AdminMenus />}
             </div>
           </>
         )}

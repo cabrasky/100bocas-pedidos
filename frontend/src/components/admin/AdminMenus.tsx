@@ -1,24 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
-import { MenuConfig, TAG_CONFIGS } from '../../types';
+import { TAG_CONFIGS } from '../../types';
+import { menuService, itemService } from '../../services/api';
+import type { MenuConfig, MenuDetail, CategoryData, ItemData } from '../../services/types';
+import { authHeaders } from '../../services/auth';
 
 const DAY_NAMES = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 const DAY_FULL = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
-
-interface MenuDetail {
-  id: number; name: string; slug: string; description: string;
-  is_active: boolean;
-  categories: CategoryData[];
-  schedules: { id: number; day: number }[];
-}
-
-interface CategoryData {
-  id: number; key: string; label: string; icon: string;
-  items: ItemData[];
-}
-
-interface ItemData {
-  id: number; code: string; name: string; ingredients: string; price: string; tags?: string; allergens?: string;
-}
 
 interface ItemEditorState {
   mode: 'add' | 'edit';
@@ -28,14 +15,11 @@ interface ItemEditorState {
 }
 
 interface Props {
-  authHeaders: () => Record<string, string>;
-  base: string;
+  // Empty — uses service singletons from services/api
 }
 
 interface ItemEditorModalProps {
   itemEditor: ItemEditorState | null;
-  authHeaders: () => Record<string, string>;
-  base: string;
   onClose: () => void;
   onSaved: (menuId: number) => void;
   onMsg: (msg: string, type: 'ok' | 'err') => void;
@@ -67,7 +51,7 @@ const normalizeAllergens = (raw: string) => {
   return Array.from(new Set(normalized));
 };
 
-function ItemEditorModal({ itemEditor, authHeaders, base, onClose, onSaved, onMsg }: ItemEditorModalProps) {
+function ItemEditorModal({ itemEditor, onClose, onSaved, onMsg }: ItemEditorModalProps) {
   const [formName, setFormName] = useState('');
   const [formCode, setFormCode] = useState('');
   const [formPrice, setFormPrice] = useState('');
@@ -137,20 +121,10 @@ function ItemEditorModal({ itemEditor, authHeaders, base, onClose, onSaved, onMs
 
     try {
       if (isEdit && editingItem) {
-        const r = await fetch(`${base}/api/admin/items/${editingItem.id}`, {
-          method: 'PUT', headers: authHeaders(),
-          body: JSON.stringify(payload),
-        });
-        const data = await r.json();
-        if (data.error) { onMsg(data.error, 'err'); return; }
+        await itemService.update(editingItem.id, payload);
         onMsg('Producto actualizado', 'ok');
       } else {
-        const r = await fetch(`${base}/api/admin/categories/${itemEditor.catId}/items`, {
-          method: 'POST', headers: authHeaders(),
-          body: JSON.stringify(payload),
-        });
-        const data = await r.json();
-        if (data.error) { onMsg(data.error, 'err'); return; }
+        await itemService.create(itemEditor.catId, payload);
         onMsg('Producto añadido', 'ok');
       }
       onSaved(itemEditor.menuId);
@@ -296,7 +270,7 @@ function ItemEditorModal({ itemEditor, authHeaders, base, onClose, onSaved, onMs
   );
 }
 
-function AdminMenus({ authHeaders, base }: Props) {
+function AdminMenus(_props: Props) {
   const [menus, setMenus] = useState<MenuConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState('');
@@ -311,12 +285,11 @@ function AdminMenus({ authHeaders, base }: Props) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await fetch(`${base}/api/admin/menus`, { headers: authHeaders() });
-      if (r.status === 401 || r.status === 403) return;
-      setMenus(await r.json());
+      const data = await menuService.list();
+      setMenus(data);
     } catch { setMsg('Error al cargar'); setMsgType('err'); }
     setLoading(false);
-  }, [base, authHeaders]);
+  }, []);
 
   useEffect(() => { load(); }, [load]);
 
@@ -325,54 +298,48 @@ function AdminMenus({ authHeaders, base }: Props) {
   const handleCreate = async () => {
     if (!newName.trim() || !newSlug.trim()) return;
     try {
-      const r = await fetch(`${base}/api/admin/menus`, {
-        method: 'POST', headers: authHeaders(),
-        body: JSON.stringify({ name: newName.trim(), slug: newSlug.trim(), description: newDesc.trim() }),
+      const data = await menuService.create({
+        name: newName.trim(),
+        slug: newSlug.trim(),
+        description: newDesc.trim(),
       });
-      const data = await r.json();
-      if (data.error) { showMsg(data.error, 'err'); }
-      else {
-        showMsg(` "${newName}" creada`, 'ok');
-        setNewName(''); setNewSlug(''); setNewDesc('');
-        load();
-      }
+      showMsg(` "${data.name}" creada`, 'ok');
+      setNewName(''); setNewSlug(''); setNewDesc('');
+      load();
     } catch { showMsg('Error al crear', 'err'); }
   };
 
   const handleActivate = async (id: number) => {
     try {
-      const r = await fetch(`${base}/api/admin/menus/${id}/activate`, { method: 'POST', headers: authHeaders() });
-      const data = await r.json();
-      if (data.error) { showMsg(data.error, 'err'); }
-      else { showMsg(' Carta activada', 'ok'); load(); if (editingMenu?.id === id) loadMenu(id); }
+      await menuService.activate(id);
+      showMsg(' Carta activada', 'ok');
+      load();
+      if (editingMenu?.id === id) loadMenu(id);
     } catch { showMsg('Error', 'err'); }
   };
 
   const handleDelete = async (id: number, name: string) => {
     if (!window.confirm(`¿Eliminar la carta "${name}"?`)) return;
     try {
-      const r = await fetch(`${base}/api/admin/menus/${id}`, { method: 'DELETE', headers: authHeaders() });
-      const data = await r.json();
-      if (data.error) { showMsg(data.error, 'err'); }
-      else { showMsg(` "${name}" eliminada`, 'ok'); load(); if (editingMenu?.id === id) setEditingMenu(null); }
+      await menuService.delete(id);
+      showMsg(` "${name}" eliminada`, 'ok');
+      load();
+      if (editingMenu?.id === id) setEditingMenu(null);
     } catch { showMsg('Error', 'err'); }
   };
 
   const handleDuplicate = async (id: number) => {
     try {
-      const r = await fetch(`${base}/api/admin/menus/${id}/duplicate`, { method: 'POST', headers: authHeaders() });
-      const data = await r.json();
-      if (data.error) { showMsg(data.error, 'err'); }
-      else { showMsg(` Duplicada como "${data.name}"`, 'ok'); load(); }
+      const data = await menuService.duplicate(id);
+      showMsg(` Duplicada como "${data.name}"`, 'ok');
+      load();
     } catch { showMsg('Error al duplicar', 'err'); }
   };
 
   // ── Export all menus to JSON ──
   const handleExport = async () => {
     try {
-      const r = await fetch(`${base}/api/admin/menus/export`, { headers: authHeaders() });
-      if (!r.ok) { showMsg('Error al exportar', 'err'); return; }
-      const data = await r.json();
+      const data = await menuService.exportAll() as any[];
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -392,13 +359,9 @@ function AdminMenus({ authHeaders, base }: Props) {
       const text = await file.text();
       const data = JSON.parse(text);
       if (!Array.isArray(data)) { showMsg('El JSON debe ser un array de cartas', 'err'); return; }
-      const r = await fetch(`${base}/api/admin/menus/import`, {
-        method: 'POST', headers: authHeaders(),
-        body: JSON.stringify(data),
-      });
-      const result = await r.json();
-      if (result.error) { showMsg(result.error, 'err'); }
-      else { showMsg(result.message, 'ok'); load(); }
+      const result = await menuService.importMenus(data);
+      showMsg(result.message, 'ok');
+      load();
     } catch { showMsg('Error al importar', 'err'); }
     // Reset input so the same file can be re-imported
     e.target.value = '';
@@ -407,9 +370,8 @@ function AdminMenus({ authHeaders, base }: Props) {
   // ── Load full menu detail ──
   const loadMenu = async (id: number) => {
     try {
-      const r = await fetch(`${base}/api/admin/menus/${id}`, { headers: authHeaders() });
-      if (r.status === 401 || r.status === 403) return;
-      setEditingMenu(await r.json());
+      const data = await menuService.get(id);
+      setEditingMenu(data);
     } catch { showMsg('Error al cargar detalle', 'err'); }
   };
 
@@ -419,12 +381,9 @@ function AdminMenus({ authHeaders, base }: Props) {
     const current = editingMenu.schedules.map(s => s.day);
     const days = add ? [...current, day].sort() : current.filter(d => d !== day);
     try {
-      const r = await fetch(`${base}/api/admin/menus/${menuId}/schedules`, {
-        method: 'POST', headers: authHeaders(),
-        body: JSON.stringify({ days }),
-      });
-      const data = await r.json();
-      if (data.error) { setSchMsg(data.error); } else { setSchMsg(' Horario actualizado'); loadMenu(menuId); }
+      await menuService.toggleSchedule(menuId, day, add);
+      setSchMsg(' Horario actualizado');
+      loadMenu(menuId);
     } catch { setSchMsg('Error'); }
     setTimeout(() => setSchMsg(''), 2500);
   };
@@ -436,19 +395,18 @@ function AdminMenus({ authHeaders, base }: Props) {
     const label = prompt('Label (nombre visible, ej: Clásicos):');
     if (!label?.trim()) return;
     try {
-      const r = await fetch(`${base}/api/admin/menus/${menuId}/categories`, {
-        method: 'POST', headers: authHeaders(),
-        body: JSON.stringify({ key: key.trim(), label: label.trim(), icon: 'fa-list' }),
+      await menuService.addCategory(menuId, {
+        key: key.trim(), label: label.trim(), icon: 'fa-list',
       });
-      const data = await r.json();
-      if (data.error) { showMsg(data.error, 'err'); } else { showMsg(` Categoría "${label}" creada`, 'ok'); loadMenu(menuId); }
+      showMsg(` Categoría "${label}" creada`, 'ok');
+      loadMenu(menuId);
     } catch { showMsg('Error', 'err'); }
   };
 
   const handleDeleteCategory = async (catId: number, menuId: number) => {
     if (!window.confirm('¿Eliminar esta categoría y todos sus productos?')) return;
     try {
-      await fetch(`${base}/api/admin/categories/${catId}`, { method: 'DELETE', headers: authHeaders() });
+      await menuService.deleteCategory(catId);
       showMsg(' Categoría eliminada', 'ok');
       loadMenu(menuId);
     } catch { showMsg('Error', 'err'); }
@@ -466,7 +424,7 @@ function AdminMenus({ authHeaders, base }: Props) {
   const handleDeleteItem = async (itemId: number, itemName: string, menuId: number) => {
     if (!window.confirm(`¿Eliminar "${itemName}"?`)) return;
     try {
-      await fetch(`${base}/api/admin/items/${itemId}`, { method: 'DELETE', headers: authHeaders() });
+      await itemService.delete(itemId);
       showMsg(` "${itemName}" eliminado`, 'ok');
       loadMenu(menuId);
     } catch { showMsg('Error', 'err'); }
@@ -478,8 +436,6 @@ function AdminMenus({ authHeaders, base }: Props) {
       {msg && <div className={`ban-msg ${msgType === 'ok' ? 'ban-msg-ok' : 'ban-msg-err'}`} style={{ marginBottom: 12 }}>{msg}</div>}
       <ItemEditorModal
         itemEditor={itemEditor}
-        authHeaders={authHeaders}
-        base={base}
         onClose={() => setItemEditor(null)}
         onSaved={(menuId) => {
           setItemEditor(null);
@@ -569,8 +525,6 @@ function AdminMenus({ authHeaders, base }: Props) {
       {editingMenu && (
         <DetailView
           menu={editingMenu}
-          authHeaders={authHeaders}
-          base={base}
           onBack={() => setEditingMenu(null)}
           onRefresh={() => loadMenu(editingMenu.id)}
           onActivate={handleActivate}
@@ -591,8 +545,6 @@ function AdminMenus({ authHeaders, base }: Props) {
 /* ── Detail View Sub-component ── */
 interface DetailProps {
   menu: MenuDetail;
-  authHeaders: () => Record<string, string>;
-  base: string;
   onBack: () => void;
   onRefresh: () => void;
   onActivate: (id: number) => void;
@@ -606,7 +558,7 @@ interface DetailProps {
   onDeleteItem: (itemId: number, itemName: string, menuId: number) => void;
 }
 
-function DetailView({ menu, authHeaders, base, onBack, onRefresh, onActivate, onMsg, schMsg, onSetSchedule, onAddCategory, onDeleteCategory, onAddItem, onEditItem, onDeleteItem }: DetailProps) {
+function DetailView({ menu, onBack, onRefresh, onActivate, onMsg, schMsg, onSetSchedule, onAddCategory, onDeleteCategory, onAddItem, onEditItem, onDeleteItem }: DetailProps) {
   const scheduledDays = menu.schedules.map(s => s.day);
 
   return (

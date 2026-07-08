@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from 'react';
 import { Person } from '../../types';
-import { getOrderHistory } from '../../services/api';
+import { sessionService } from '../../services/api';
 import { getPrice, parsePrice } from '../../services/menuStore';
 
 interface Props {
@@ -141,7 +141,7 @@ function LiquidacionModal({ open, onClose, persons, sessionCode }: Props) {
   useEffect(() => {
     if (!open || !sessionCode) return;
     setLoading(true);
-    getOrderHistory(sessionCode)
+    sessionService.getOrderHistory(sessionCode)
       .then(data => setHistoryOrders(data as HistoryOrder[]))
       .catch(() => setHistoryOrders([]))
       .finally(() => setLoading(false));
