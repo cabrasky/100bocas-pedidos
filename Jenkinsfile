@@ -282,7 +282,7 @@ pipeline {
                 for (br in branches.readLines()) {
                     if (!br.trim()) continue
                     def safe = sh(
-                        script: "echo '${br}' | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g;s/--*/-/g;s/^-//;s/-$//'",
+                        script: "echo '${br}' | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g;s/--*/-/g;s/^-//;s/-\$//'",
                         returnStdout: true
                     ).trim()
                     safeBranches[safe] = br.trim()
