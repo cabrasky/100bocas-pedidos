@@ -168,7 +168,7 @@ pipeline {
                             sh '''
                                 if ! kubectl get secret bocas-secrets -n bocas 2>/dev/null; then
                                     echo "→ Creating bocas-secrets from base/secrets.yaml..."
-                                    kubectl apply -f base/secrets.yaml
+                                    kubectl apply -f base/secrets.yaml -n bocas
                                 else
                                     echo "✓ bocas-secrets already exists — keeping existing values"
                                 fi
