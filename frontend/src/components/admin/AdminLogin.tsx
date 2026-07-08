@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { adminService } from '../../services/admin.service';
 
 interface Props {
   onLogin: (token: string) => void;
@@ -9,7 +10,6 @@ function AdminLogin({ onLogin }: Props) {
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
   const [loginBusy, setLoginBusy] = useState(false);
-  const base = window.location.origin;
 
   useEffect(() => {
     setTimeout(() => {
@@ -23,21 +23,10 @@ function AdminLogin({ onLogin }: Props) {
     setLoginError('');
     setLoginBusy(true);
     try {
-      const r = await fetch(`${base}/api/admin/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: password.trim() }),
-      });
-      const data = await r.json();
-      if (data.error) {
-        setLoginError(data.error);
-        setLoginBusy(false);
-      } else {
-        localStorage.setItem('100bocas_admin_token', data.token);
-        onLogin(data.token);
-      }
-    } catch {
-      setLoginError('Error de conexión');
+      const data = await adminService.login(password.trim());
+      onLogin(data.token);
+    } catch (error: any) {
+      setLoginError(error?.message || 'Error de conexión');
       setLoginBusy(false);
     }
   };

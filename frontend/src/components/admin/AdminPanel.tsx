@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
 import AdminLogin from './AdminLogin';
 import AdminStats from './AdminStats';
 import AdminMenus from './AdminMenus';
@@ -10,13 +10,6 @@ interface Props {
 function AdminPanel({ onClose }: Props) {
   const [token, setToken] = useState<string | null>(null);
   const [tab, setTab] = useState<'stats' | 'menus'>('stats');
-
-  const base = window.location.origin;
-
-  const authHeaders = useCallback(() => ({
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${token}`,
-  }), [token]);
 
   const handleLogout = () => setToken(null);
 
@@ -48,7 +41,7 @@ function AdminPanel({ onClose }: Props) {
             </div>
 
             <div className="admin-body">
-              {tab === 'stats' && <AdminStats authHeaders={authHeaders} base={base} />}
+              {tab === 'stats' && <AdminStats />}
               {tab === 'menus' && <AdminMenus />}
             </div>
           </>
