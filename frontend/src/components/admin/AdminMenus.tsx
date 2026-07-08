@@ -20,9 +20,178 @@ interface ItemData {
   id: number; code: string; name: string; ingredients: string; price: string; tags?: string; allergens?: string;
 }
 
+interface ItemEditorState {
+  mode: 'add' | 'edit';
+  catId: number;
+  menuId: number;
+  item?: ItemData;
+}
+
 interface Props {
   authHeaders: () => Record<string, string>;
   base: string;
+}
+
+interface ItemEditorModalProps {
+  itemEditor: ItemEditorState | null;
+  authHeaders: () => Record<string, string>;
+  base: string;
+  onClose: () => void;
+  onSaved: (menuId: number) => void;
+  onMsg: (msg: string, type: 'ok' | 'err') => void;
+}
+
+function ItemEditorModal({ itemEditor, authHeaders, base, onClose, onSaved, onMsg }: ItemEditorModalProps) {
+  const [formName, setFormName] = useState('');
+  const [formCode, setFormCode] = useState('');
+  const [formPrice, setFormPrice] = useState('');
+  const [allergensVal, setAllergensVal] = useState('');
+
+  useEffect(() => {
+    if (!itemEditor) {
+      setFormName('');
+      setFormCode('');
+      setFormPrice('');
+      setAllergensVal('');
+      return;
+    }
+
+    const item = itemEditor.item;
+    setFormName(item?.name || '');
+    setFormCode(item?.code || '');
+    setFormPrice(String(item?.price ?? ''));
+    setAllergensVal(item?.allergens || '');
+  }, [itemEditor]);
+
+  if (!itemEditor) return null;
+
+  const isEdit = itemEditor.mode === 'edit';
+  const editingItem = itemEditor.item;
+  const allergenSet = new Set(allergensVal.split(',').map(a => a.trim().toLowerCase()).filter(Boolean));
+
+  const handleSave = async () => {
+    if (!formName.trim()) return;
+    const price = parseFloat(formPrice.replace(',', '.')) || 0;
+    const payload = {
+      name: formName.trim(),
+      code: formCode,
+      price,
+      tags: '',
+      allergens: allergensVal,
+    };
+    try {
+      if (isEdit && editingItem) {
+        const r = await fetch(`${base}/api/admin/items/${editingItem.id}`, {
+          method: 'PUT', headers: authHeaders(),
+          body: JSON.stringify(payload),
+        });
+        const data = await r.json();
+        if (data.error) { onMsg(data.error, 'err'); return; }
+        onMsg(' Producto actualizado', 'ok');
+      } else {
+        const r = await fetch(`${base}/api/admin/categories/${itemEditor.catId}/items`, {
+          method: 'POST', headers: authHeaders(),
+          body: JSON.stringify(payload),
+        });
+        const data = await r.json();
+        if (data.error) { onMsg(data.error, 'err'); return; }
+        onMsg(' Producto añadido', 'ok');
+      }
+      onSaved(itemEditor.menuId);
+    } catch {
+      onMsg('Error al guardar', 'err');
+    }
+  };
+
+  return (
+    <div className="admin-overlay-simple" onClick={onClose}>
+      <div className="admin-modal-small" onClick={e => e.stopPropagation()}>
+        <div className="admin-header">
+          <i className="fas fa-utensils"></i>
+          <h3>{isEdit ? 'Editar producto' : 'Nuevo producto'}</h3>
+          <button className="admin-close" onClick={onClose}>
+            <i className="fas fa-xmark"></i>
+          </button>
+        </div>
+        <div className="tag-selector-body">
+
+          <label style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, display: 'block', marginBottom: 4 }}>Nombre *</label>
+          <input
+            type="text" className="menu-input" placeholder="Nombre del producto"
+            value={formName} onChange={e => setFormName(e.target.value)}
+            autoFocus style={{ marginBottom: 10 }}
+          />
+
+          <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
+            <div style={{ flex: 1 }}>
+              <label style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, display: 'block', marginBottom: 4 }}>Código</label>
+              <input
+                type="text" className="menu-input" placeholder="ej: 01"
+                value={formCode} onChange={e => setFormCode(e.target.value)}
+              />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, display: 'block', marginBottom: 4 }}>Precio (€)</label>
+              <input
+                type="text" className="menu-input" placeholder="ej: 1.50"
+                value={formPrice} onChange={e => setFormPrice(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <label style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, display: 'block', marginBottom: 4 }}>
+            Alérgenos que contiene <span style={{ fontWeight: 400, color: '#94a3b8' }}>(separados por coma)</span>
+          </label>
+          <input
+            type="text" className="menu-input"
+            placeholder="ej: huevo, lactosa, gluten"
+            value={allergensVal} onChange={e => setAllergensVal(e.target.value)}
+            style={{ marginBottom: 8 }}
+          />
+          <p style={{ fontSize: '0.65rem', color: '#94a3b8', marginBottom: 12, lineHeight: 1.4 }}>
+            Códigos: huevo, lactosa, gluten, carne, pescado, marisco, miel, frutos_secos, soja, mostaza, apio, cacahuete, sésamo, moluscos, altramuz, sulfitos, nata, queso, mantequilla, harina, pan
+          </p>
+
+          <p style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, marginBottom: 8 }}>
+            Etiquetas calculadas automáticamente:
+          </p>
+          <div className="tag-grid" style={{ marginBottom: 16 }}>
+            {TAG_CONFIGS.map(t => {
+              let excluded = false;
+              if (t.key === 'vegetarian') excluded = ['carne','pescado','marisco'].some(a => allergenSet.has(a));
+              else if (t.key === 'vegan') excluded = ['carne','pescado','marisco','huevo','lactosa','miel','nata','queso','mantequilla'].some(a => allergenSet.has(a));
+              else if (t.key === 'gluten-free') excluded = ['gluten','harina','pan'].some(a => allergenSet.has(a));
+              else if (t.key === 'without-eggs') excluded = ['huevo'].some(a => allergenSet.has(a));
+              else if (t.key === 'without-lactose') excluded = ['lactosa','nata','queso','mantequilla'].some(a => allergenSet.has(a));
+              const active = !excluded;
+              return (
+                <span key={t.key} className={`tag-pill ${active ? 'on' : 'off'}`}
+                  style={{
+                    opacity: active ? 1 : 0.4, cursor: 'default',
+                    background: active ? t.bg : '#1e293b',
+                    color: active ? t.color : '#64748b',
+                    border: active ? `2px solid ${t.color}` : '2px solid #334155',
+                  }}
+                >
+                  <i className={`fas ${t.icon}`}></i> {t.label}
+                  {!active && <i className="fas fa-ban" style={{ marginLeft: 4, fontSize: 9 }}></i>}
+                </span>
+              );
+            })}
+          </div>
+
+          <div className="tag-selector-actions">
+            <button className="menu-cancel-btn" onClick={onClose}>
+              Cancelar
+            </button>
+            <button className="menu-save-btn" onClick={handleSave} disabled={!formName.trim()}>
+              <i className="fas fa-check"></i> {isEdit ? 'Guardar cambios' : 'Crear producto'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function AdminMenus({ authHeaders, base }: Props) {
@@ -35,12 +204,7 @@ function AdminMenus({ authHeaders, base }: Props) {
   const [newDesc, setNewDesc] = useState('');
   const [editingMenu, setEditingMenu] = useState<MenuDetail | null>(null);
   const [schMsg, setSchMsg] = useState('');
-  const [itemEditor, setItemEditor] = useState<{
-    mode: 'add' | 'edit';
-    catId: number;
-    menuId: number;
-    item?: ItemData;
-  } | null>(null);
+  const [itemEditor, setItemEditor] = useState<ItemEditorState | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -206,148 +370,21 @@ function AdminMenus({ authHeaders, base }: Props) {
     } catch { showMsg('Error', 'err'); }
   };
 
-  // ── Render Item Editor Modal ──
-  const renderItemEditor = () => {
-    if (!itemEditor) return null;
-    const isEdit = itemEditor.mode === 'edit';
-    const i = itemEditor.item;
-    const [formName, setFormName] = useState(i?.name || '');
-    const [formCode, setFormCode] = useState(i?.code || '');
-    const [formPrice, setFormPrice] = useState(String(i?.price ?? ''));
-    const [allergensVal, setAllergensVal] = useState(i?.allergens || '');
-
-    // Compute tags preview from current allergens
-    const allergenSet = new Set(allergensVal.split(',').map(a => a.trim().toLowerCase()).filter(Boolean));
-
-    const handleSave = async () => {
-      if (!formName.trim()) return;
-      const price = parseFloat(formPrice.replace(',', '.')) || 0;
-      const payload = {
-        name: formName.trim(),
-        code: formCode,
-        price,
-        tags: '',  // backend computes tags from allergens
-        allergens: allergensVal,
-      };
-      try {
-        if (isEdit && i) {
-          const r = await fetch(`${base}/api/admin/items/${i.id}`, {
-            method: 'PUT', headers: authHeaders(),
-            body: JSON.stringify(payload),
-          });
-          const data = await r.json();
-          if (data.error) { showMsg(data.error, 'err'); return; }
-          showMsg(' Producto actualizado', 'ok');
-        } else {
-          const r = await fetch(`${base}/api/admin/categories/${itemEditor.catId}/items`, {
-            method: 'POST', headers: authHeaders(),
-            body: JSON.stringify(payload),
-          });
-          const data = await r.json();
-          if (data.error) { showMsg(data.error, 'err'); return; }
-          showMsg(' Producto añadido', 'ok');
-        }
-        setItemEditor(null);
-        loadMenu(itemEditor.menuId);
-      } catch { showMsg('Error al guardar', 'err'); }
-    };
-
-    return (
-      <div className="admin-overlay-simple" onClick={() => setItemEditor(null)}>
-        <div className="admin-modal-small" onClick={e => e.stopPropagation()}>
-          <div className="admin-header">
-            <i className="fas fa-utensils"></i>
-            <h3>{isEdit ? 'Editar producto' : 'Nuevo producto'}</h3>
-            <button className="admin-close" onClick={() => setItemEditor(null)}>
-              <i className="fas fa-xmark"></i>
-            </button>
-          </div>
-          <div className="tag-selector-body">
-
-            <label style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, display: 'block', marginBottom: 4 }}>Nombre *</label>
-            <input
-              type="text" className="menu-input" placeholder="Nombre del producto"
-              value={formName} onChange={e => setFormName(e.target.value)}
-              autoFocus style={{ marginBottom: 10 }}
-            />
-
-            <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
-              <div style={{ flex: 1 }}>
-                <label style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, display: 'block', marginBottom: 4 }}>Código</label>
-                <input
-                  type="text" className="menu-input" placeholder="ej: 01"
-                  value={formCode} onChange={e => setFormCode(e.target.value)}
-                />
-              </div>
-              <div style={{ flex: 1 }}>
-                <label style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, display: 'block', marginBottom: 4 }}>Precio (€)</label>
-                <input
-                  type="text" className="menu-input" placeholder="ej: 1.50"
-                  value={formPrice} onChange={e => setFormPrice(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <label style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, display: 'block', marginBottom: 4 }}>
-              Alérgenos que contiene <span style={{ fontWeight: 400, color: '#94a3b8' }}>(separados por coma)</span>
-            </label>
-            <input
-              type="text" className="menu-input"
-              placeholder="ej: huevo, lactosa, gluten"
-              value={allergensVal} onChange={e => setAllergensVal(e.target.value)}
-              style={{ marginBottom: 8 }}
-            />
-            <p style={{ fontSize: '0.65rem', color: '#94a3b8', marginBottom: 12, lineHeight: 1.4 }}>
-              Códigos: huevo, lactosa, gluten, carne, pescado, marisco, miel, frutos_secos, soja, mostaza, apio, cacahuete, sésamo, moluscos, altramuz, sulfitos, nata, queso, mantequilla, harina, pan
-            </p>
-
-            <p style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, marginBottom: 8 }}>
-              Etiquetas calculadas automáticamente:
-            </p>
-            <div className="tag-grid" style={{ marginBottom: 16 }}>
-              {TAG_CONFIGS.map(t => {
-                let excluded = false;
-                if (t.key === 'vegetarian') excluded = ['carne','pescado','marisco'].some(a => allergenSet.has(a));
-                else if (t.key === 'vegan') excluded = ['carne','pescado','marisco','huevo','lactosa','miel','nata','queso','mantequilla'].some(a => allergenSet.has(a));
-                else if (t.key === 'gluten-free') excluded = ['gluten','harina','pan'].some(a => allergenSet.has(a));
-                else if (t.key === 'without-eggs') excluded = ['huevo'].some(a => allergenSet.has(a));
-                else if (t.key === 'without-lactose') excluded = ['lactosa','nata','queso','mantequilla'].some(a => allergenSet.has(a));
-                const active = !excluded;
-                return (
-                  <span key={t.key} className={`tag-pill ${active ? 'on' : 'off'}`}
-                    style={{
-                      opacity: active ? 1 : 0.4, cursor: 'default',
-                      background: active ? t.bg : '#1e293b',
-                      color: active ? t.color : '#64748b',
-                      border: active ? `2px solid ${t.color}` : '2px solid #334155',
-                    }}
-                  >
-                    <i className={`fas ${t.icon}`}></i> {t.label}
-                    {!active && <i className="fas fa-ban" style={{ marginLeft: 4, fontSize: 9 }}></i>}
-                  </span>
-                );
-              })}
-            </div>
-
-            <div className="tag-selector-actions">
-              <button className="menu-cancel-btn" onClick={() => setItemEditor(null)}>
-                Cancelar
-              </button>
-              <button className="menu-save-btn" onClick={handleSave} disabled={!formName.trim()}>
-                <i className="fas fa-check"></i> {isEdit ? 'Guardar cambios' : 'Crear producto'}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   // ── Render ──
   return (
     <div className="admin-menus">
       {msg && <div className={`ban-msg ${msgType === 'ok' ? 'ban-msg-ok' : 'ban-msg-err'}`} style={{ marginBottom: 12 }}>{msg}</div>}
-      {renderItemEditor()}
+      <ItemEditorModal
+        itemEditor={itemEditor}
+        authHeaders={authHeaders}
+        base={base}
+        onClose={() => setItemEditor(null)}
+        onSaved={(menuId) => {
+          setItemEditor(null);
+          loadMenu(menuId);
+        }}
+        onMsg={showMsg}
+      />
 
       {/* ── List View ── */}
       {!editingMenu && (
@@ -544,7 +581,7 @@ function DetailView({ menu, authHeaders, base, onBack, onRefresh, onActivate, on
                   <span style={{ color: '#94a3b8', fontSize: 10 }}>({c.items.length})</span>
                   <button onClick={() => onDeleteCategory(c.id, menu.id)}
                     style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: 10, padding: 0 }}>
-                    
+
                   </button>
                 </span>
               ))}
