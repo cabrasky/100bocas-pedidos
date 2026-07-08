@@ -265,6 +265,54 @@ pipeline {
         }
     }
 
+    stage('Cleanup Stale Branches') {
+        when {
+            expression { return env.IS_MAIN == 'true' }
+        }
+        steps {
+            script {
+                echo "═══════════════ Cleaning stale branch deployments ═══════════════"
+
+                // 1. Build a set of sanitized safe names from actual remote branches
+                def safeBranches = [:]
+                def branches = sh(
+                    script: "git ls-remote --heads origin | awk '{print \$2}' | sed 's|refs/heads/||'",
+                    returnStdout: true
+                ).trim()
+                for (br in branches.readLines()) {
+                    if (!br.trim()) continue
+                    def safe = sh(
+                        script: "echo '${br}' | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g;s/--*/-/g;s/^-//;s/-$//'",
+                        returnStdout: true
+                    ).trim()
+                    safeBranches[safe] = br.trim()
+                }
+                echo "Active remote branches (safe): ${safeBranches.keySet().sort()}"
+
+                // 2. List all branch namespaces and clean stale ones
+                def nsOutput = sh(
+                    script: "kubectl get ns --no-headers -o name 2>/dev/null | grep 'bocas-branch-' | sed 's|namespace/||' || true",
+                    returnStdout: true
+                ).trim()
+                for (ns in nsOutput.readLines()) {
+                    ns = ns.trim()
+                    if (!ns) continue
+                    def branchSafe = ns - 'bocas-branch-'
+                    echo "  Checking ${ns} → safe: ${branchSafe}"
+
+                    if (safeBranches.containsKey(branchSafe)) {
+                        echo "  ✓ Branch '${safeBranches[branchSafe]}' exists — keeping ${ns}"
+                    } else {
+                        echo "  ✗ Branch '${branchSafe}' not found — deleting namespace ${ns}"
+                        sh "kubectl delete namespace ${ns} --ignore-not-found --wait=false"
+                    }
+                }
+
+                echo "══════════════════════════════════════════════════════════════════"
+            }
+        }
+    }
+
     post {
         always {
             sh 'docker image prune -f || true'
