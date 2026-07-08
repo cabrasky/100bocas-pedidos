@@ -301,8 +301,12 @@ function OrderPage() {
     if (!sessionCode || !myName || placingOrder) return;
     setPlacingOrder(true);
     try {
-      const result = await placeOrder(sessionCode, myName);
+      const result: any = await placeOrder(sessionCode, myName);
       addToast(` Pedido #${result.order_number} realizado (${result.total_items} ud)`, 'add', 4000);
+      // Force-update persons from the HTTP response (items are now empty)
+      if (result.people) {
+        setPersons(result.people);
+      }
     } catch {
       addToast(' Error al realizar el pedido', 'remove');
     } finally {

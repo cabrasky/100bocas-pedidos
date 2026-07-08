@@ -1568,6 +1568,8 @@ async def place_order(code: str, body: dict = {}):
 
     # Get updated session data
     data = await get_session_data(code)
+    if data is None:
+        return JSONResponse({"error": "Session not found"}, status_code=404)
     await touch_session(code)
     await broadcast(code, {
         "type": "sync",
@@ -1579,6 +1581,7 @@ async def place_order(code: str, body: dict = {}):
         "order_number": order_number,
         "total_items": total_items,
         "people_count": len(people_names),
+        **data,
     }
 
 
