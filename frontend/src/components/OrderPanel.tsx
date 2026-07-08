@@ -14,9 +14,10 @@ interface Props {
   onExportLiquidacion: () => void;
   onPlaceOrder: () => void;
   onShowHistory: () => void;
+  placingOrder?: boolean;
 }
 
-function OrderPanel({ currentPerson, persons, onChangeQty, onRemoveItem, onClear, onExport, onExportConsolidated, onExportLiquidacion, onPlaceOrder, onShowHistory }: Props) {
+function OrderPanel({ currentPerson, persons, onChangeQty, onRemoveItem, onClear, onExport, onExportConsolidated, onExportLiquidacion, onPlaceOrder, onShowHistory, placingOrder }: Props) {
   const MOBILE = useMemo(() => window.innerWidth < 860, []);
   const [panelOpen, setPanelOpen] = useState(false);
 
@@ -98,6 +99,10 @@ function OrderPanel({ currentPerson, persons, onChangeQty, onRemoveItem, onClear
               <span>Total persona</span>
               <span>{personTotal.toFixed(2).replace('.', ',')}€</span>
             </div>
+          </>
+        )}
+        {groupHasItems && (
+          <>
             <div className="group-summary">
               <div className="gs-title">Resumen grupo</div>
               {persons.map((p, i) => {
@@ -134,8 +139,14 @@ function OrderPanel({ currentPerson, persons, onChangeQty, onRemoveItem, onClear
           </button>
         </div>
         {groupHasItems && (
-          <button className="btn-place-order" onClick={onPlaceOrder}>
-            <i className="fas fa-check-circle"></i> Hacer pedido
+          <button className="btn-place-order" onClick={onPlaceOrder} disabled={placingOrder}
+            style={placingOrder ? { opacity: 0.7, pointerEvents: 'none' } : {}}>
+            {placingOrder ? (
+              <i className="fas fa-spinner fa-spin"></i>
+            ) : (
+              <i className="fas fa-check-circle"></i>
+            )}
+            {placingOrder ? 'Pagando...' : hasItems ? 'Hacer pedido' : 'Pagar cuenta'}
           </button>
         )}
       </div>
@@ -163,7 +174,12 @@ function OrderPanel({ currentPerson, persons, onChangeQty, onRemoveItem, onClear
             </button>
           </div>
 
-          {!hasItems ? (
+          {!hasItems && groupHasItems ? (
+            <div className="order-empty" style={{ flex: 1 }}>
+              <i className="fas fa-cart-plus"></i>
+              <p>Carrito vacío — los demás tienen productos</p>
+            </div>
+          ) : !hasItems ? (
             <div className="order-empty" style={{ flex: 1 }}>
               <i className="fas fa-cart-plus"></i>
               <p>Sin productos — toca un producto para añadirlo</p>
@@ -194,14 +210,16 @@ function OrderPanel({ currentPerson, persons, onChangeQty, onRemoveItem, onClear
           )}
 
           <div className="mobile-order-footer">
-            {hasItems && (
+            {groupHasItems && (
               <>
-                <div className="mobile-order-total">
-                  <span>{currentPerson?.name || '—'}</span>
-                  <span className="mob-total-price">{personTotal.toFixed(2).replace('.', ',')}€</span>
-                </div>
-                <div className="mobile-order-total" style={{ borderTop: '1px solid #e2e8f0', paddingTop: 8, marginTop: 4 }}>
-                  <span style={{ fontWeight: 700 }}>Grupo</span>
+                {hasItems && (
+                  <div className="mobile-order-total">
+                    <span>{currentPerson?.name || '—'}</span>
+                    <span className="mob-total-price">{personTotal.toFixed(2).replace('.', ',')}€</span>
+                  </div>
+                )}
+                <div className="mobile-order-total" style={{ borderTop: hasItems ? '1px solid #e2e8f0' : 'none', paddingTop: hasItems ? 8 : 0, marginTop: hasItems ? 4 : 0 }}>
+                  <span style={{ fontWeight: 700 }}>Total cuenta</span>
                   <span className="mob-total-price">{groupTotal.toFixed(2).replace('.', ',')}€</span>
                 </div>
               </>
@@ -209,8 +227,14 @@ function OrderPanel({ currentPerson, persons, onChangeQty, onRemoveItem, onClear
             <div className="mobile-order-actions">
               {groupHasItems && (
                 <button className="btn-place-order" onClick={() => { closePanel(); onPlaceOrder(); }}
-                  style={{ flex: 1.5, padding: 11, borderRadius: 12, border: 'none', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', background: 'linear-gradient(135deg, #059669, #10b981)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                  <i className="fas fa-check-circle"></i> Pedir
+                  disabled={placingOrder}
+                  style={{ flex: 1.5, padding: 11, borderRadius: 12, border: 'none', fontWeight: 700, fontSize: 13, cursor: placingOrder ? 'not-allowed' : 'pointer', fontFamily: 'inherit', background: 'linear-gradient(135deg, #059669, #10b981)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: placingOrder ? 0.7 : 1 }}>
+                  {placingOrder ? (
+                    <i className="fas fa-spinner fa-spin"></i>
+                  ) : (
+                    <i className="fas fa-check-circle"></i>
+                  )}
+                  {placingOrder ? 'Pagando...' : hasItems ? 'Pedir' : 'Pagar cuenta'}
                 </button>
               )}
               <button className="btn-clear" onClick={() => { closePanel(); onClear(); }} style={{ flex: 1 }}>

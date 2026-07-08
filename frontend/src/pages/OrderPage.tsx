@@ -41,6 +41,7 @@ function OrderPage() {
   const [orderViewMode, setOrderViewMode] = useState<'by-person' | 'consolidated' | null>(null);
   const [showOrderHistory, setShowOrderHistory] = useState(false);
   const [showLiquidacion, setShowLiquidacion] = useState(false);
+  const [placingOrder, setPlacingOrder] = useState(false);
   const wsRef = useRef<SessionWebSocket | null>(null);
   const prevPersonsRef = useRef<Person[]>([]);
 
@@ -297,14 +298,17 @@ function OrderPage() {
 
   // Place order — save to history and clear only current user's items
   const handlePlaceOrder = useCallback(async () => {
-    if (!sessionCode || !myName) return;
+    if (!sessionCode || !myName || placingOrder) return;
+    setPlacingOrder(true);
     try {
       const result = await placeOrder(sessionCode, myName);
       addToast(` Pedido #${result.order_number} realizado (${result.total_items} ud)`, 'add', 4000);
     } catch {
       addToast(' Error al realizar el pedido', 'remove');
+    } finally {
+      setPlacingOrder(false);
     }
-  }, [sessionCode, myName, addToast]);
+  }, [sessionCode, myName, addToast, placingOrder]);
 
   const sessionUrl = `https://100bocas.cabrasky.net/app?session=${sessionCode}`;
 
@@ -371,6 +375,7 @@ function OrderPage() {
           onExportLiquidacion={showLiquidacionView}
           onPlaceOrder={handlePlaceOrder}
           onShowHistory={() => setShowOrderHistory(true)}
+          placingOrder={placingOrder}
         />
         <HistoryPanel sessionCode={sessionCode} />
       </div>
