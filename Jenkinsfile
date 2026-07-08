@@ -59,8 +59,9 @@ pipeline {
                         env.IMAGE_TAG = "${env.APP_VERSION}-${env.GIT_SHORT}"
                     } else {
                         // Sanitize branch name for k8s (lowercase, alphanumeric + hyphens)
+                        def rawBranch = env.BRANCH_NAME
                         env.BRANCH_SAFE = sh(
-                            script: """echo "${env.BRANCH_NAME}" | sed 's/[^a-zA-Z0-9]/-/g' | sed 's/--*/-/g' | sed 's/^-//;s/-$//' | tr '[:upper:]' '[:lower:]'""",
+                            script: "python3 -c \"import re; b='${rawBranch}'; b=re.sub(r'[^a-zA-Z0-9]','-',b); b=re.sub(r'-+','-',b); b=b.strip('-').lower(); print(b)\"",
                             returnStdout: true
                         ).trim()
                         env.DEPLOY_NAMESPACE = "bocas-branch-${env.BRANCH_SAFE}"
