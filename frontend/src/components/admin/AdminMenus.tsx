@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { TAG_CONFIGS } from '../../types';
 import { menuService, itemService } from '../../services/api';
 import type { MenuConfig, MenuDetail, CategoryData, ItemData } from '../../services/types';
-import { authHeaders } from '../../services/auth';
 
 const DAY_NAMES = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 const DAY_FULL = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
