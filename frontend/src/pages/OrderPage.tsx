@@ -417,6 +417,30 @@ function OrderPage() {
         persons={persons}
         sessionCode={sessionCode}
       />
+
+      {/* ── Loading overlay during payment ── */}
+      {placingOrder && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 100000,
+          background: 'rgba(0,0,0,.55)',
+          display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
+          gap: 16, backdropFilter: 'blur(4px)',
+          animation: 'fadeIn .2s ease',
+        }}>
+          <div style={{
+            background: '#fff', borderRadius: 20, padding: '2.5rem 3rem',
+            display: 'flex', flexDirection: 'column',
+            alignItems: 'center', gap: 16,
+            boxShadow: '0 24px 80px rgba(0,0,0,.25)',
+            animation: 'modalSlideUp .3s ease',
+          }}>
+            <i className="fas fa-spinner fa-spin" style={{ fontSize: 40, color: '#059669' }}></i>
+            <div style={{ fontWeight: 700, fontSize: 18, color: '#1e293b' }}>Procesando pedido…</div>
+            <div style={{ fontSize: 13, color: '#94a3b8' }}>Guardando y cerrando la ronda</div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
