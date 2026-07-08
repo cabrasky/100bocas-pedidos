@@ -251,6 +251,65 @@ header .header-right {
 }
 
 /* ═══════════════════════════════════════════
+   TAG FILTER PILLS & BADGES
+   ═══════════════════════════════════════════ */
+.tags-row {
+  display: flex;
+  gap: 0.3125rem;
+  margin-bottom: 0.5rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  min-width: 0;
+  max-width: 100%;
+}
+.tags-row::-webkit-scrollbar { display: none; }
+.tag-pill {
+  padding: 0.3125rem 0.625rem;
+  border: 0.0938rem solid #d1d5db;
+  border-radius: 6.25rem;
+  background: #fff;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all .15s;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.tag-pill:hover {
+  border-color: #9ca3af;
+  color: #374151;
+}
+.tag-pill.active {
+  box-shadow: 0 0 0 1.5px currentColor;
+}
+.tag-clear {
+  border-color: #e2e8f0;
+  color: #94a3b8;
+  font-size: 0.625rem;
+}
+.tag-clear:hover {
+  border-color: #ef4444;
+  color: #ef4444;
+  background: #fef2f2;
+}
+.tag-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.1875rem;
+  padding: 0.0625rem 0.4375rem;
+  border-radius: 6.25rem;
+  font-size: 0.5625rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+/* ═══════════════════════════════════════════
    SEARCH BAR
    ═══════════════════════════════════════════ */
 .search-bar {

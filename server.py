@@ -198,6 +198,8 @@ async def _ensure_bans_table():
         for col, typ in [("ban_type", "VARCHAR(20) DEFAULT 'ban'"),
                          ("offense_count", "INTEGER DEFAULT 1")]:
             await conn.execute(f"ALTER TABLE banned_ips ADD COLUMN IF NOT EXISTS {col} {typ}")
+        # Migration: add tags column to menu_items
+        await conn.execute("ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS tags TEXT DEFAULT ''")
 
         # CIDR bans table
         await conn.execute("""
@@ -1303,7 +1305,7 @@ async def _get_active_menu(conn) -> dict | None:
     categories = []
     for c in cats:
         items = await conn.fetch(
-            "SELECT id, code, name, ingredients, price, sort_order FROM menu_items WHERE category_id = $1 ORDER BY sort_order",
+            "SELECT id, code, name, ingredients, price, tags, sort_order FROM menu_items WHERE category_id = $1 ORDER BY sort_order",
             c["id"],
         )
         categories.append({
@@ -1312,7 +1314,8 @@ async def _get_active_menu(conn) -> dict | None:
             "label": c["label"],
             "icon": c["icon"],
             "items": [{"id": i["id"], "code": i["code"] or "", "name": i["name"],
-                       "ingredients": i["ingredients"] or "", "price": i["price"] or ""}
+                       "ingredients": i["ingredients"] or "", "price": i["price"] or "",
+                       "tags": i["tags"] or ""}
                       for i in items],
         })
     return {
@@ -1470,7 +1473,7 @@ async def admin_export_menus(request: Request):
             categories = []
             for c in cats:
                 items = await conn.fetch(
-                    "SELECT code, name, ingredients, price, sort_order FROM menu_items WHERE category_id = $1 ORDER BY sort_order, id",
+                    "SELECT code, name, ingredients, price, tags, sort_order FROM menu_items WHERE category_id = $1 ORDER BY sort_order, id",
                     c["id"],
                 )
                 categories.append({
@@ -1483,6 +1486,7 @@ async def admin_export_menus(request: Request):
                         "name": i["name"],
                         "ingredients": i["ingredients"] or "",
                         "price": i["price"] or "",
+                        "tags": i["tags"] or "",
                         "sort_order": i["sort_order"],
                     } for i in items],
                 })
@@ -1549,10 +1553,10 @@ async def admin_import_menus(request: Request):
                 # Import items
                 for item in cat.get("items") or []:
                     await conn.execute(
-                        "INSERT INTO menu_items (category_id, code, name, ingredients, price, sort_order) VALUES ($1, $2, $3, $4, $5, $6)",
+                        "INSERT INTO menu_items (category_id, code, name, ingredients, price, tags, sort_order) VALUES ($1, $2, $3, $4, $5, $6, $7)",
                         cat_id, item.get("code", ""), item.get("name", ""),
                         item.get("ingredients", ""), item.get("price", ""),
-                        item.get("sort_order", 0),
+                        item.get("tags", ""), item.get("sort_order", 0),
                     )
             # Import schedules
             for day in menu_data.get("schedules") or []:
@@ -1586,7 +1590,7 @@ async def admin_get_menu(request: Request, menu_id: int):
         categories = []
         for c in cats:
             items = await conn.fetch(
-                "SELECT id, code, name, ingredients, price, sort_order FROM menu_items WHERE category_id = $1 ORDER BY sort_order, id",
+                "SELECT id, code, name, ingredients, price, tags, sort_order FROM menu_items WHERE category_id = $1 ORDER BY sort_order, id",
                 c["id"],
             )
             categories.append({
@@ -1595,7 +1599,8 @@ async def admin_get_menu(request: Request, menu_id: int):
                 "label": c["label"],
                 "icon": c["icon"],
                 "items": [{"id": i["id"], "code": i["code"] or "", "name": i["name"],
-                           "ingredients": i["ingredients"] or "", "price": i["price"] or ""}
+                           "ingredients": i["ingredients"] or "", "price": i["price"] or "",
+                           "tags": i["tags"] or ""}
                           for i in items],
             })
         schedules = await conn.fetch(
@@ -1648,14 +1653,14 @@ async def admin_duplicate_menu(request: Request, menu_id: int):
             )
             # Copy items
             items = await conn.fetch(
-                "SELECT code, name, ingredients, price, sort_order FROM menu_items WHERE category_id IN "
+                "SELECT code, name, ingredients, price, tags, sort_order FROM menu_items WHERE category_id IN "
                 "(SELECT id FROM menu_categories WHERE menu_id = $1 AND key = $2) ORDER BY id",
                 menu_id, c["key"],
             )
             for i in items:
                 await conn.execute(
-                    "INSERT INTO menu_items (category_id, code, name, ingredients, price, sort_order) VALUES ($1, $2, $3, $4, $5, $6)",
-                    cat_id, i["code"], i["name"], i["ingredients"], i["price"], i["sort_order"],
+                    "INSERT INTO menu_items (category_id, code, name, ingredients, price, tags, sort_order) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+                    cat_id, i["code"], i["name"], i["ingredients"], i["price"], i["tags"], i["sort_order"],
                 )
     return {"id": new_id, "name": f"{src['name']} (copia)"}
 
@@ -1846,6 +1851,7 @@ async def admin_create_item(request: Request, cat_id: int):
     code = body.get("code", "")
     price = body.get("price", "")
     ingredients = body.get("ingredients", "")
+    tags = body.get("tags", "")
     if not name:
         return JSONResponse({"error": "name required"}, status_code=400)
     assert pool
@@ -1854,8 +1860,8 @@ async def admin_create_item(request: Request, cat_id: int):
         if not row:
             return JSONResponse({"error": "Category not found"}, status_code=404)
         item_id = await conn.fetchval(
-            "INSERT INTO menu_items (category_id, code, name, ingredients, price) VALUES ($1, $2, $3, $4, $5) RETURNING id",
-            cat_id, code, name, ingredients, price,
+            "INSERT INTO menu_items (category_id, code, name, ingredients, price, tags) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id",
+            cat_id, code, name, ingredients, price, tags,
         )
     return {"id": item_id, "name": name, "code": code}
 
@@ -1878,7 +1884,7 @@ async def admin_update_item(request: Request, item_id: int):
         sets = []
         vals = []
         i = 1
-        for field in ("code", "name", "ingredients", "price", "sort_order"):
+        for field in ("code", "name", "ingredients", "price", "tags", "sort_order"):
             if field in body:
                 sets.append(f"{field} = ${i}")
                 vals.append(body[field])

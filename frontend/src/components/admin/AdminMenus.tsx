@@ -17,7 +17,7 @@ interface CategoryData {
 }
 
 interface ItemData {
-  id: number; code: string; name: string; ingredients: string; price: string;
+  id: number; code: string; name: string; ingredients: string; price: string; tags?: string;
 }
 
 interface Props {
@@ -188,25 +188,27 @@ function AdminMenus({ authHeaders, base }: Props) {
     if (!name?.trim()) return;
     const code = prompt('Código (opcional, ej: 01):') || '';
     const price = prompt('Precio (opcional, ej: 1€):') || '';
+    const tags = prompt('Etiquetas separadas por coma (opcional, ej: vegetarian,spicy):') || '';
     try {
       const r = await fetch(`${base}/api/admin/categories/${catId}/items`, {
         method: 'POST', headers: authHeaders(),
-        body: JSON.stringify({ name: name.trim(), code, price }),
+        body: JSON.stringify({ name: name.trim(), code, price, tags }),
       });
       const data = await r.json();
       if (data.error) { showMsg(data.error, 'err'); } else { showMsg(` "${name}" añadido`, 'ok'); loadMenu(menuId); }
     } catch { showMsg('Error', 'err'); }
   };
 
-  const handleEditItem = async (item: ItemData, catId: number, menuId: number) => {
+  const handleEditItem = async (item: ItemData & { tags?: string }, catId: number, menuId: number) => {
     const name = prompt('Nombre:', item.name);
     if (!name?.trim()) return;
     const code = prompt('Código:', item.code) || '';
     const price = prompt('Precio:', item.price) || '';
+    const tags = prompt('Etiquetas separadas por coma (ej: vegetarian,spicy):', item.tags || '') || '';
     try {
       await fetch(`${base}/api/admin/items/${item.id}`, {
         method: 'PUT', headers: authHeaders(),
-        body: JSON.stringify({ name: name.trim(), code, price }),
+        body: JSON.stringify({ name: name.trim(), code, price, tags }),
       });
       showMsg(' Producto actualizado', 'ok');
       loadMenu(menuId);
@@ -461,6 +463,7 @@ function DetailView({ menu, authHeaders, base, onBack, onRefresh, onActivate, on
                       }}>
                         {i.code && <span style={{ color: '#94a3b8', fontWeight: 700, fontSize: 10 }}>#{i.code}</span>}
                         <span style={{ flex: 1, fontWeight: 600 }}>{i.name}</span>
+                        {(i as any).tags && <span style={{ fontSize: 9, color: '#6b7280' }}>{(i as any).tags}</span>}
                         {i.ingredients && <span style={{ color: '#94a3b8', fontSize: 10 }}>{i.ingredients}</span>}
                         <span style={{ fontWeight: 700, color: '#059669' }}>{i.price}</span>
                         <button onClick={() => onEditItem(i, c.id, menu.id)} style={{

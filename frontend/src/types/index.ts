@@ -60,7 +60,7 @@ export interface Toast {
 
 // ── API Menu Types ──
 export interface ApiMenuItemData {
-  id: number; code: string; name: string; ingredients: string; price: string;
+  id: number; code: string; name: string; ingredients: string; price: string; tags: string;
 }
 
 export interface ApiMenuCategoryData {
@@ -71,6 +71,34 @@ export interface ApiMenuCategoryData {
 export interface ApiMenuData {
   id: number; name: string; slug: string; description: string;
   categories: ApiMenuCategoryData[];
+}
+
+// ── Tag system ──
+export interface TagMeta {
+  key: string;
+  label: string;
+  icon: string;
+  bg: string;
+  color: string;
+}
+
+export const TAG_CONFIGS: TagMeta[] = [
+  { key: 'vegetarian',    label: 'Vegetal',    icon: 'fa-leaf',     bg: '#dcfce7', color: '#166534' },
+  { key: 'vegan',         label: 'Vegano',     icon: 'fa-seedling', bg: '#bbf7d0', color: '#14532d' },
+  { key: 'gluten-free',   label: 'Sin gluten', icon: 'fa-wheat-awn-circle-exclamation', bg: '#fef3c7', color: '#92400e' },
+  { key: 'spicy',         label: 'Picante',    icon: 'fa-pepper-hot', bg: '#fee2e2', color: '#991b1b' },
+  { key: 'without-eggs',  label: 'Sin huevo',  icon: 'fa-egg',      bg: '#f3e8ff', color: '#6b21a8' },
+  { key: 'without-lactose', label: 'Sin lactosa', icon: 'fa-glass-water', bg: '#e0f2fe', color: '#075985' },
+  { key: 'special',       label: 'Especial',   icon: 'fa-star',     bg: '#fef9c3', color: '#854d0e' },
+];
+
+export function getTagMeta(key: string): TagMeta | undefined {
+  return TAG_CONFIGS.find(t => t.key === key);
+}
+
+export function parseTags(tags: string): string[] {
+  if (!tags) return [];
+  return tags.split(',').map(t => t.trim()).filter(Boolean);
 }
 
 // ── Admin Types ──

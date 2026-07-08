@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
-import { Person } from '../types';
+import { useMemo, useState } from 'react';
+import { Person, TAG_CONFIGS, getTagMeta, parseTags } from '../types';
 import { MENU } from '../data/menuData';
 import { getKey, getCatLabel, getPrice, getCatIcon, getActiveMenu } from '../services/menuStore';
 
@@ -15,6 +15,7 @@ interface Props {
 
 function MenuGrid({ persons, currentPersonIdx, activeCat, searchTerm, onSetCategory, onSearchChange, onToggleItem }: Props) {
   const person = persons[currentPersonIdx] || persons[0] || null;
+  const [activeTags, setActiveTags] = useState<Set<string>>(new Set());
 
   const cats = useMemo(() => {
     const active = getActiveMenu();
@@ -26,6 +27,27 @@ function MenuGrid({ persons, currentPersonIdx, activeCat, searchTerm, onSetCateg
     return activeCat === 'all' ? cats : [activeCat];
   }, [activeCat, cats]);
 
+  const toggleTag = (tag: string) => {
+    setActiveTags(prev => {
+      const next = new Set(prev);
+      if (next.has(tag)) next.delete(tag); else next.add(tag);
+      return next;
+    });
+  };
+
+  // Check if an item has any of the active tags
+  const itemMatchesTags = (catKey: string, itemKey: string): boolean => {
+    if (activeTags.size === 0) return true;
+    const active = getActiveMenu();
+    if (!active) return true;
+    const cat = active.categories.find(c => c.key === catKey);
+    if (!cat) return true;
+    const apiItem = cat.items.find(i => (i.code || i.name) === itemKey || i.name === itemKey);
+    if (!apiItem) return true;
+    const itemTags = parseTags(apiItem.tags);
+    return itemTags.some(t => activeTags.has(t));
+  };
+
   // Flatten items with category headers for proper grid layout
   const gridItems = useMemo(() => {
     const items: Array<{ type: 'header' | 'card'; catKey?: string; item?: any; key?: string }> = [];
@@ -35,9 +57,14 @@ function MenuGrid({ persons, currentPersonIdx, activeCat, searchTerm, onSetCateg
       const cat = MENU[catKey];
       if (!cat?.items) continue;
       
-      const filtered = cat.items.filter(i =>
-        !q || (i.code || '').includes(q) || i.name.toLowerCase().includes(q)
-      );
+      const filtered = cat.items.filter(i => {
+        // Text search
+        if (q && !(i.code || '').includes(q) && !i.name.toLowerCase().includes(q)) return false;
+        // Tag filter
+        const itemKey = getKey(i);
+        if (!itemMatchesTags(catKey, itemKey)) return false;
+        return true;
+      });
       if (filtered.length === 0) continue;
       
       if (activeCat === 'all') {
@@ -49,7 +76,7 @@ function MenuGrid({ persons, currentPersonIdx, activeCat, searchTerm, onSetCateg
       }
     }
     return items;
-  }, [filteredCats, searchTerm, activeCat]);
+  }, [filteredCats, searchTerm, activeCat, activeTags]);
 
   const hasResults = gridItems.length > 0;
 
@@ -71,6 +98,28 @@ function MenuGrid({ persons, currentPersonIdx, activeCat, searchTerm, onSetCateg
             <i className={`fas ${getCatIcon(k)}`}></i> {getCatLabel(k)}
           </button>
         ))}
+      </div>
+
+      {/* Tag filter pills */}
+      <div className="tags-row">
+        {TAG_CONFIGS.map(t => {
+          const isActive = activeTags.has(t.key);
+          return (
+            <button
+              key={t.key}
+              className={`tag-pill${isActive ? ' active' : ''}`}
+              onClick={() => toggleTag(t.key)}
+              style={isActive ? { background: t.bg, color: t.color, borderColor: t.color } : {}}
+            >
+              <i className={`fas ${t.icon}`}></i> {t.label}
+            </button>
+          );
+        })}
+        {activeTags.size > 0 && (
+          <button className="tag-pill tag-clear" onClick={() => setActiveTags(new Set())}>
+            <i className="fas fa-times"></i> Limpiar
+          </button>
+        )}
       </div>
 
       <div className="search-bar">
@@ -99,6 +148,17 @@ function MenuGrid({ persons, currentPersonIdx, activeCat, searchTerm, onSetCateg
           const name = item.name;
           const ingredients = item.ingredients;
           const selected = !!inOrder;
+
+          // Get tags for this item from active menu
+          let tags: string[] = [];
+          const active = getActiveMenu();
+          if (active) {
+            const cat = active.categories.find(c => c.key === gi.catKey);
+            if (cat) {
+              const apiItem = cat.items.find(i => (i.code || i.name) === gi.key || i.name === name);
+              if (apiItem?.tags) tags = parseTags(apiItem.tags);
+            }
+          }
           
           return (
             <div
@@ -108,6 +168,18 @@ function MenuGrid({ persons, currentPersonIdx, activeCat, searchTerm, onSetCateg
             >
               {code && <span className="code">#{code}</span>}
               <div className="name">{name}</div>
+              {tags.length > 0 && (
+                <div className="tags-row" style={{ marginTop: 4, gap: 3, flexWrap: 'wrap' }}>
+                  {tags.map(t => {
+                    const meta = getTagMeta(t);
+                    return meta ? (
+                      <span key={t} className="tag-badge" style={{ background: meta.bg, color: meta.color }}>
+                        <i className={`fas ${meta.icon}`} style={{ fontSize: '0.5rem' }}></i> {meta.label}
+                      </span>
+                    ) : null;
+                  })}
+                </div>
+              )}
               {ingredients && <div className="ingredients">{ingredients}</div>}
               {price && <div className="price">{price}</div>}
               {inOrder && <div className="added-badge">{inOrder.qty}</div>}
