@@ -155,6 +155,14 @@ pipeline {
                                 cd overlays/production
                                 kustomize edit set image PLACEHOLDER_BACKEND=${BACKEND_IMAGE}:${IMAGE_TAG}
                                 kustomize edit set image PLACEHOLDER_FRONTEND=${FRONTEND_IMAGE}:${IMAGE_TAG}
+                                echo ""
+                                echo "═══════════════ K8S CONFIG to deploy ═══════════════"
+                                echo "--- kustomization.yaml ---"
+                                cat kustomization.yaml
+                                echo ""
+                                echo "--- kustomize build output ---"
+                                kustomize build
+                                echo "═══════════════════════════════════════════════════════"
                             """
                             // Create secret only if it doesn't exist — never overwrite existing
                             sh '''
@@ -177,6 +185,16 @@ pipeline {
                                   | sed 's|PLACEHOLDER_BRANCH_TAG|${IMAGE_TAG}|g' \\
                                   > overlays/branch/kustomization.yaml.generated
 
+                                echo ""
+                                echo "═══════════════ K8S CONFIG to deploy ═══════════════"
+                                echo "--- Generated kustomization.yaml ---"
+                                cat overlays/branch/kustomization.yaml.generated
+                                echo ""
+                                echo "--- Branch kustomize build output ---"
+                                kustomize build overlays/branch
+                                echo "═══════════════════════════════════════════════════════"
+                                echo ""
+
                                 # Create namespace + secrets if needed
                                 kubectl get namespace ${deployNs} 2>/dev/null || \\
                                   kubectl create namespace ${deployNs}
@@ -192,6 +210,11 @@ pipeline {
                                 mv overlays/branch/kustomization.yaml.generated overlays/branch/kustomization.yaml
                                 kubectl apply -k overlays/branch
 
+                                echo ""
+                                echo "═══════════════ Deployed Resources ═══════════════════"
+                                kubectl get all -n ${deployNs}
+                                echo "═══════════════════════════════════════════════════════"
+                                echo ""
                                 echo "✅ Branch ${BRANCH_NAME} deployed to ${deployNs}"
                             """
                         }
