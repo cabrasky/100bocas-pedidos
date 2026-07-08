@@ -65,7 +65,7 @@ pipeline {
                             returnStdout: true
                         ).trim()
                         env.DEPLOY_NAMESPACE = "bocas-branch-${env.BRANCH_SAFE}"
-                        env.IMAGE_TAG = "${env.APP_VERSION}-${env.BRANCH_SAFE}"
+                        env.IMAGE_TAG = "${env.BRANCH_SAFE}"
                         echo "→ Branch deployment: ${env.BRANCH_NAME}"
                         echo "  Safe name:     ${env.BRANCH_SAFE}"
                         echo "  Namespace:     ${env.DEPLOY_NAMESPACE}"
@@ -77,7 +77,7 @@ pipeline {
 
         stage('Check Image Exists') {
             when {
-                expression { return !params.FORCE_DEPLOY }
+                expression { return env.IS_MAIN == 'true' && !params.FORCE_DEPLOY }
             }
             steps {
                 script {
