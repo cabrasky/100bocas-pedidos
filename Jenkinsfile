@@ -181,8 +181,8 @@ pipeline {
                             sh """
                                 # Generate branch kustomization with actual values
                                 cat overlays/branch/kustomization.yaml \\
-                                  | sed 's/PLACEHOLDER_BRANCH/${safeName}/g' \\
                                   | sed 's|PLACEHOLDER_BRANCH_TAG|${IMAGE_TAG}|g' \\
+                                  | sed 's/PLACEHOLDER_BRANCH/${safeName}/g' \\
                                   > overlays/branch/kustomization.yaml.generated
 
                                 echo ""
