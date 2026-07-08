@@ -60,7 +60,7 @@ export interface Toast {
 
 // ── API Menu Types ──
 export interface ApiMenuItemData {
-  id: number; code: string; name: string; ingredients: string; price: string; tags: string;
+  id: number; code: string; name: string; ingredients: string; price: string; tags: string; allergens: string;
 }
 
 export interface ApiMenuCategoryData {

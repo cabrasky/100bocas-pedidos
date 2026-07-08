@@ -72,6 +72,9 @@ CREATE TABLE IF NOT EXISTS menu_items (
 -- Add tags column if not exists (migration for existing DBs)
 ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS tags TEXT DEFAULT '';
 
+-- Add allergens column for subtractive restriction model
+ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS allergens TEXT DEFAULT '';
+
 CREATE TABLE IF NOT EXISTS menu_schedules (
     id           SERIAL PRIMARY KEY,
     menu_id      INTEGER NOT NULL REFERENCES menu_configs(id) ON DELETE CASCADE,

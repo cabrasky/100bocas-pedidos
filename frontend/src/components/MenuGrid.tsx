@@ -35,7 +35,7 @@ function MenuGrid({ persons, currentPersonIdx, activeCat, searchTerm, onSetCateg
     });
   };
 
-  // Check if an item has any of the active tags
+  // INNER JOIN — item must satisfy ALL selected restrictions
   const itemMatchesTags = (catKey: string, itemKey: string): boolean => {
     if (activeTags.size === 0) return true;
     const active = getActiveMenu();
@@ -45,7 +45,8 @@ function MenuGrid({ persons, currentPersonIdx, activeCat, searchTerm, onSetCateg
     const apiItem = cat.items.find(i => (i.code || i.name) === itemKey || i.name === itemKey);
     if (!apiItem) return true;
     const itemTags = parseTags(apiItem.tags);
-    return itemTags.some(t => activeTags.has(t));
+    // All selected tags must be present on the item (INNER JOIN)
+    return [...activeTags].every(t => itemTags.includes(t));
   };
 
   // Flatten items with category headers for proper grid layout
@@ -151,12 +152,14 @@ function MenuGrid({ persons, currentPersonIdx, activeCat, searchTerm, onSetCateg
 
           // Get tags for this item from active menu
           let tags: string[] = [];
+          let allergens: string = '';
           const active = getActiveMenu();
           if (active) {
             const cat = active.categories.find(c => c.key === gi.catKey);
             if (cat) {
               const apiItem = cat.items.find(i => (i.code || i.name) === gi.key || i.name === name);
               if (apiItem?.tags) tags = parseTags(apiItem.tags);
+              if (apiItem?.allergens) allergens = apiItem.allergens;
             }
           }
           
@@ -180,6 +183,9 @@ function MenuGrid({ persons, currentPersonIdx, activeCat, searchTerm, onSetCateg
                   })}
                 </div>
               )}
+              {allergens && <div className="allergens" style={{ fontSize: '0.65rem', color: '#94a3b8', marginTop: 2, fontStyle: 'italic' }}>
+                <i className="fas fa-circle-exclamation"></i> {allergens}
+              </div>}
               {ingredients && <div className="ingredients">{ingredients}</div>}
               {price && <div className="price">{price}</div>}
               {inOrder && <div className="added-badge">{inOrder.qty}</div>}

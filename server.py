@@ -55,6 +55,58 @@ _ws_id_counter: int = 0
 _ws_by_id: dict[int, WebSocket] = {}                    # id -> ws
 _cleanup_task: asyncio.Task | None = None
 
+# ── Subtractive allergen system ─────────────────────
+# Allergen codes an item can CONTAIN (ingredients or known substances).
+# Tags are COMPUTED from allergens via subtractive rules below.
+ALLERGEN_CODES = {
+    "huevo": "Huevo", "lactosa": "Lactosa", "gluten": "Gluten",
+    "carne": "Carne", "pescado": "Pescado", "marisco": "Marisco",
+    "miel": "Miel", "frutos_secos": "Frutos secos", "soja": "Soja",
+    "mostaza": "Mostaza", "apio": "Apio", "cacahuete": "Cacahuete",
+    "sesamo": "Sésamo", "moluscos": "Moluscos", "altramuz": "Altramuz",
+    "sulfitos": "Sulfitos", "nata": "Nata", "queso": "Queso",
+    "mantequilla": "Mantequilla", "harina": "Harina", "pan": "Pan",
+}
+
+# Each tag = list of allergen codes that EXCLUDE this tag (subtractive).
+# If an item's allergens contain ANY code in the list, the tag is NOT applied.
+# Tags not listed (spicy, special) remain manual — not allergen-derived.
+ALLERGEN_RULES: dict[str, list[str]] = {
+    "vegetarian":      ["carne", "pescado", "marisco"],
+    "vegan":           ["carne", "pescado", "marisco", "huevo", "lactosa", "miel", "nata", "queso", "mantequilla"],
+    "gluten-free":     ["gluten", "harina", "pan"],
+    "without-eggs":    ["huevo"],
+    "without-lactose": ["lactosa", "nata", "queso", "mantequilla"],
+}
+
+
+def _compute_tags(allergens: str, stored_tags: str = "") -> str:
+    """Compute tags from allergens using subtractive rules.
+    
+    If allergens is empty/not set, falls back to stored_tags (legacy).
+    Tags not covered by rules (spicy, special) are always preserved.
+    """
+    if not allergens or not allergens.strip():
+        return stored_tags  # fallback to stored tags
+
+    item_allergens = {a.strip().lower() for a in allergens.split(",") if a.strip()}
+    resulting = set()
+
+    # Compute each rule-based tag subtractively
+    for tag, exclusions in ALLERGEN_RULES.items():
+        if not any(excl in item_allergens for excl in exclusions):
+            resulting.add(tag)
+
+    # Preserve manual tags (spicy, special) from stored_tags
+    if stored_tags:
+        manual = {"spicy", "special"}
+        for t in stored_tags.split(","):
+            t = t.strip().lower()
+            if t in manual:
+                resulting.add(t)
+
+    return ",".join(sorted(resulting))
+
 
 # ── Security helpers ──────────────────────────────
 def _get_client_ip(request: Request) -> str:
@@ -797,7 +849,7 @@ async def _get_active_menu(conn) -> dict | None:
     categories = []
     for c in cats:
         items = await conn.fetch(
-            "SELECT id, code, name, ingredients, price, tags, sort_order FROM menu_items WHERE category_id = $1 ORDER BY sort_order",
+            "SELECT id, code, name, ingredients, price, tags, allergens, sort_order FROM menu_items WHERE category_id = $1 ORDER BY sort_order",
             c["id"],
         )
         categories.append({
@@ -807,7 +859,8 @@ async def _get_active_menu(conn) -> dict | None:
             "icon": c["icon"],
             "items": [{"id": i["id"], "code": i["code"] or "", "name": i["name"],
                        "ingredients": i["ingredients"] or "", "price": float(i["price"]) if i["price"] is not None else 0,
-                       "tags": i["tags"] or ""}
+                       "tags": _compute_tags(i["allergens"] or "", i["tags"] or ""),
+                       "allergens": i["allergens"] or ""}
                       for i in items],
         })
     return {
@@ -965,7 +1018,7 @@ async def admin_export_menus(request: Request):
             categories = []
             for c in cats:
                 items = await conn.fetch(
-                    "SELECT code, name, ingredients, price, tags, sort_order FROM menu_items WHERE category_id = $1 ORDER BY sort_order, id",
+                    "SELECT code, name, ingredients, price, tags, allergens, sort_order FROM menu_items WHERE category_id = $1 ORDER BY sort_order, id",
                     c["id"],
                 )
                 categories.append({
@@ -979,6 +1032,7 @@ async def admin_export_menus(request: Request):
                         "ingredients": i["ingredients"] or "",
                         "price": float(i["price"]) if i["price"] is not None else 0,
                         "tags": i["tags"] or "",
+                        "allergens": i["allergens"] or "",
                         "sort_order": i["sort_order"],
                     } for i in items],
                 })
@@ -1045,10 +1099,10 @@ async def admin_import_menus(request: Request):
                 # Import items
                 for item in cat.get("items") or []:
                     await conn.execute(
-                        "INSERT INTO menu_items (category_id, code, name, ingredients, price, tags, sort_order) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+                        "INSERT INTO menu_items (category_id, code, name, ingredients, price, tags, allergens, sort_order) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
                         cat_id, item.get("code", ""), item.get("name", ""),
                         item.get("ingredients", ""), item.get("price", 0),
-                        item.get("tags", ""), item.get("sort_order", 0),
+                        item.get("tags", ""), item.get("allergens", ""), item.get("sort_order", 0),
                     )
             # Import schedules
             for day in menu_data.get("schedules") or []:
@@ -1082,7 +1136,7 @@ async def admin_get_menu(request: Request, menu_id: int):
         categories = []
         for c in cats:
             items = await conn.fetch(
-                "SELECT id, code, name, ingredients, price, tags, sort_order FROM menu_items WHERE category_id = $1 ORDER BY sort_order, id",
+                "SELECT id, code, name, ingredients, price, tags, allergens, sort_order FROM menu_items WHERE category_id = $1 ORDER BY sort_order, id",
                 c["id"],
             )
             categories.append({
@@ -1092,7 +1146,8 @@ async def admin_get_menu(request: Request, menu_id: int):
                 "icon": c["icon"],
                 "items": [{"id": i["id"], "code": i["code"] or "", "name": i["name"],
                            "ingredients": i["ingredients"] or "", "price": float(i["price"]) if i["price"] is not None else 0,
-                           "tags": i["tags"] or ""}
+                           "tags": _compute_tags(i["allergens"] or "", i["tags"] or ""),
+                           "allergens": i["allergens"] or ""}
                           for i in items],
             })
         schedules = await conn.fetch(
@@ -1145,14 +1200,14 @@ async def admin_duplicate_menu(request: Request, menu_id: int):
             )
             # Copy items
             items = await conn.fetch(
-                "SELECT code, name, ingredients, price, tags, sort_order FROM menu_items WHERE category_id IN "
+                "SELECT code, name, ingredients, price, tags, allergens, sort_order FROM menu_items WHERE category_id IN "
                 "(SELECT id FROM menu_categories WHERE menu_id = $1 AND key = $2) ORDER BY id",
                 menu_id, c["key"],
             )
             for i in items:
                 await conn.execute(
-                    "INSERT INTO menu_items (category_id, code, name, ingredients, price, tags, sort_order) VALUES ($1, $2, $3, $4, $5, $6, $7)",
-                    cat_id, i["code"], i["name"], i["ingredients"], i["price"], i["tags"], i["sort_order"],
+                    "INSERT INTO menu_items (category_id, code, name, ingredients, price, tags, allergens, sort_order) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+                    cat_id, i["code"], i["name"], i["ingredients"], i["price"], i["tags"], i["allergens"], i["sort_order"],
                 )
     return {"id": new_id, "name": f"{src['name']} (copia)"}
 
@@ -1344,6 +1399,7 @@ async def admin_create_item(request: Request, cat_id: int):
     price = body.get("price", 0)
     ingredients = body.get("ingredients", "")
     tags = body.get("tags", "")
+    allergens = body.get("allergens", "")
     if not name:
         return JSONResponse({"error": "name required"}, status_code=400)
     assert pool
@@ -1352,8 +1408,8 @@ async def admin_create_item(request: Request, cat_id: int):
         if not row:
             return JSONResponse({"error": "Category not found"}, status_code=404)
         item_id = await conn.fetchval(
-            "INSERT INTO menu_items (category_id, code, name, ingredients, price, tags) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id",
-            cat_id, code, name, ingredients, price, tags,
+            "INSERT INTO menu_items (category_id, code, name, ingredients, price, tags, allergens) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
+            cat_id, code, name, ingredients, price, tags, allergens,
         )
     return {"id": item_id, "name": name, "code": code, "price": float(price) if price else 0}
 
@@ -1376,7 +1432,7 @@ async def admin_update_item(request: Request, item_id: int):
         sets = []
         vals = []
         i = 1
-        for field in ("code", "name", "ingredients", "price", "tags", "sort_order"):
+        for field in ("code", "name", "ingredients", "price", "tags", "allergens", "sort_order"):
             if field in body:
                 sets.append(f"{field} = ${i}")
                 vals.append(body[field])

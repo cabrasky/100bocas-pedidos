@@ -17,7 +17,7 @@ interface CategoryData {
 }
 
 interface ItemData {
-  id: number; code: string; name: string; ingredients: string; price: string; tags?: string;
+  id: number; code: string; name: string; ingredients: string; price: string; tags?: string; allergens?: string;
 }
 
 interface Props {
@@ -214,8 +214,8 @@ function AdminMenus({ authHeaders, base }: Props) {
   };
 
 
-  // ── Tag Selector Modal ──
-  const handleSaveWithTags = async (tags: string[]) => {
+  // ── Tag Selector Modal (allergens-based, tags are computed) ──
+  const handleSaveWithTags = async (tags: string[], allergens: string) => {
     const sel = tagSelector;
     if (!sel) return;
     const tagsStr = tags.join(',');
@@ -229,7 +229,7 @@ function AdminMenus({ authHeaders, base }: Props) {
       try {
         const r = await fetch(`${base}/api/admin/categories/${sel.catId}/items`, {
           method: 'POST', headers: authHeaders(),
-          body: JSON.stringify({ name: name.trim(), code, price, tags: tagsStr }),
+          body: JSON.stringify({ name: name.trim(), code, price, tags: tagsStr, allergens }),
         });
         const data = await r.json();
         if (data.error) showMsg(data.error, 'err');
@@ -239,7 +239,7 @@ function AdminMenus({ authHeaders, base }: Props) {
       try {
         await fetch(`${base}/api/admin/items/${item.id}`, {
           method: 'PUT', headers: authHeaders(),
-          body: JSON.stringify({ name: item.name, code: item.code, price: item.price, tags: tagsStr }),
+          body: JSON.stringify({ name: item.name, code: item.code, price: item.price, tags: tagsStr, allergens }),
         });
         showMsg(' Producto actualizado', 'ok');
         loadMenu(sel.menuId);
@@ -248,55 +248,82 @@ function AdminMenus({ authHeaders, base }: Props) {
     setTagSelector(null);
   };
 
-  // ── Render Tag Selector Modal ──
+  // ── Render Tag Selector Modal (allergens mode) ──
   const renderTagSelector = () => {
     if (!tagSelector) return null;
-    const current = tagSelector.item?.tags ? tagSelector.item.tags.split(',').filter(Boolean) : [];
-    const [selected, setSelected] = useState<string[]>(current);
+    const currentTags = tagSelector.item?.tags ? tagSelector.item.tags.split(',').filter(Boolean) : [];
+    const currentAllergens = tagSelector.item?.allergens || '';
+    const [selected, setSelected] = useState<string[]>(currentTags);
+    const [allergensVal, setAllergensVal] = useState<string>(currentAllergens);
+    // Compute which tags would result from current allergens
+    const allergenSet = new Set(allergensVal.split(',').map(a => a.trim().toLowerCase()).filter(Boolean));
+    const computedTags: { key: string; label: string; icon: string; bg: string; color: string; active: boolean }[] = [];
 
     return (
       <div className="admin-overlay-simple" onClick={() => setTagSelector(null)}>
         <div className="admin-modal-small" onClick={e => e.stopPropagation()}>
           <div className="admin-header">
             <i className="fas fa-tags"></i>
-            <h3>Seleccionar etiquetas</h3>
+            <h3>Alérgenos y etiquetas</h3>
             <button className="admin-close" onClick={() => setTagSelector(null)}>
               <i className="fas fa-xmark"></i>
             </button>
           </div>
           <div className="tag-selector-body">
-            <p style={{ fontSize: '0.8125rem', color: '#94a3b8', marginBottom: 12 }}>
-              Selecciona las etiquetas para este producto:
+            <p style={{ fontSize: '0.8125rem', color: '#94a3b8', marginBottom: 8 }}>
+              Introduce los <strong>alérgenos/ingredientes</strong> que contiene el producto (separados por coma):
             </p>
-            <div className="tag-grid">
+            <input
+              type="text"
+              className="menu-input"
+              placeholder="ej: huevo, lactosa, gluten"
+              value={allergensVal}
+              onChange={e => setAllergensVal(e.target.value)}
+              style={{ marginBottom: 12 }}
+            />
+            <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginBottom: 8 }}>
+              Códigos disponibles: huevo, lactosa, gluten, carne, pescado, marisco, miel, frutos_secos, soja, mostaza, apio, cacahuete, sésamo, moluscos, altramuz, sulfitos, nata, queso, mantequilla, harina, pan
+            </p>
+
+            <p style={{ fontSize: '0.8125rem', color: '#64748b', marginBottom: 8, fontWeight: 600 }}>
+              Etiquetas calculadas automáticamente:
+            </p>
+            <div className="tag-grid" style={{ marginBottom: 12 }}>
               {TAG_CONFIGS.map(t => {
-                const isOn = selected.includes(t.key);
+                // Check if this tag is excluded by current allergens
+                let excluded = false;
+                if (t.key === 'vegetarian') excluded = ['carne','pescado','marisco'].some(a => allergenSet.has(a));
+                else if (t.key === 'vegan') excluded = ['carne','pescado','marisco','huevo','lactosa','miel','nata','queso','mantequilla'].some(a => allergenSet.has(a));
+                else if (t.key === 'gluten-free') excluded = ['gluten','harina','pan'].some(a => allergenSet.has(a));
+                else if (t.key === 'without-eggs') excluded = ['huevo'].some(a => allergenSet.has(a));
+                else if (t.key === 'without-lactose') excluded = ['lactosa','nata','queso','mantequilla'].some(a => allergenSet.has(a));
+                const active = !excluded;
                 return (
-                  <button
+                  <span
                     key={t.key}
-                    className={`tag-pill ${isOn ? 'on' : 'off'}`}
+                    className={`tag-pill ${active ? 'on' : 'off'}`}
                     style={{
-                      background: isOn ? t.bg : '#1e293b',
-                      color: isOn ? t.color : '#64748b',
-                      border: isOn ? `2px solid ${t.color}` : '2px solid #334155',
-                    }}
-                    onClick={() => {
-                      if (isOn) setSelected(selected.filter(s => s !== t.key));
-                      else setSelected([...selected, t.key]);
+                      opacity: active ? 1 : 0.4,
+                      background: active ? t.bg : '#1e293b',
+                      color: active ? t.color : '#64748b',
+                      border: active ? `2px solid ${t.color}` : '2px solid #334155',
+                      cursor: 'default',
                     }}
                   >
                     <i className={`fas ${t.icon}`}></i> {t.label}
-                  </button>
+                    {!active && <i className="fas fa-ban" style={{ marginLeft: 4, fontSize: 9 }}></i>}
+                  </span>
                 );
               })}
             </div>
+
             <div className="tag-selector-actions">
               <button className="menu-cancel-btn" onClick={() => setTagSelector(null)}>
                 Cancelar
               </button>
               <button
                 className="menu-save-btn"
-                onClick={() => handleSaveWithTags(selected)}
+                onClick={() => handleSaveWithTags(selected, allergensVal)}
               >
                 <i className="fas fa-check"></i> {tagSelector.mode === 'add' ? 'Crear producto' : 'Guardar cambios'}
               </button>
@@ -547,7 +574,7 @@ function DetailView({ menu, authHeaders, base, onBack, onRefresh, onActivate, on
                       }}>
                         {i.code && <span style={{ color: '#94a3b8', fontWeight: 700, fontSize: 10 }}>#{i.code}</span>}
                         <span style={{ flex: 1, fontWeight: 600 }}>{i.name}</span>
-                        {(i as any).tags && <span style={{ fontSize: 9, color: '#6b7280' }}>{(i as any).tags}</span>}
+                        {(i as any).allergens && <span style={{ fontSize: 9, color: '#ef4444', fontStyle: 'italic' }}>{(i as any).allergens}</span>}
                         {i.ingredients && <span style={{ color: '#94a3b8', fontSize: 10 }}>{i.ingredients}</span>}
                         <span style={{ fontWeight: 700, color: '#059669' }}>{i.price}</span>
                         <button onClick={() => onEditItem(i, c.id, menu.id)} style={{
