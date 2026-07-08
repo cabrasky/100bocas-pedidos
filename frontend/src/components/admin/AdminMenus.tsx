@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { MenuConfig, TAG_CONFIGS, getTagMeta } from '../../types';
+import { MenuConfig, TAG_CONFIGS } from '../../types';
 
 const DAY_NAMES = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 const DAY_FULL = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
@@ -41,11 +41,39 @@ interface ItemEditorModalProps {
   onMsg: (msg: string, type: 'ok' | 'err') => void;
 }
 
+const KNOWN_ALLERGENS = [
+  'huevo', 'lactosa', 'gluten', 'carne', 'pescado', 'marisco', 'miel', 'frutos_secos',
+  'soja', 'mostaza', 'apio', 'cacahuete', 'sesamo', 'sésamo', 'moluscos', 'altramuz',
+  'sulfitos', 'nata', 'queso', 'mantequilla', 'harina', 'pan',
+];
+
+const ALLERGEN_RULES: Record<string, string[]> = {
+  vegetarian: ['carne', 'pescado', 'marisco'],
+  vegan: ['carne', 'pescado', 'marisco', 'huevo', 'lactosa', 'miel', 'nata', 'queso', 'mantequilla'],
+  'gluten-free': ['gluten', 'harina', 'pan'],
+  'without-eggs': ['huevo'],
+  'without-lactose': ['lactosa', 'nata', 'queso', 'mantequilla'],
+};
+
+const QUICK_ALLERGENS = ['gluten', 'huevo', 'lactosa', 'carne', 'pescado', 'marisco'];
+
+const normalizeAllergens = (raw: string) => {
+  const normalized = raw
+    .split(/[;,\n]/)
+    .map(a => a.trim().toLowerCase())
+    .filter(Boolean)
+    .map(a => a === 'sésamo' ? 'sesamo' : a);
+
+  return Array.from(new Set(normalized));
+};
+
 function ItemEditorModal({ itemEditor, authHeaders, base, onClose, onSaved, onMsg }: ItemEditorModalProps) {
   const [formName, setFormName] = useState('');
   const [formCode, setFormCode] = useState('');
   const [formPrice, setFormPrice] = useState('');
   const [allergensVal, setAllergensVal] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [inlineError, setInlineError] = useState('');
 
   useEffect(() => {
     if (!itemEditor) {
@@ -61,24 +89,52 @@ function ItemEditorModal({ itemEditor, authHeaders, base, onClose, onSaved, onMs
     setFormCode(item?.code || '');
     setFormPrice(String(item?.price ?? ''));
     setAllergensVal(item?.allergens || '');
+    setInlineError('');
+    setSaving(false);
   }, [itemEditor]);
 
   if (!itemEditor) return null;
 
   const isEdit = itemEditor.mode === 'edit';
   const editingItem = itemEditor.item;
-  const allergenSet = new Set(allergensVal.split(',').map(a => a.trim().toLowerCase()).filter(Boolean));
+  const normalizedAllergens = normalizeAllergens(allergensVal);
+  const allergenSet = new Set(normalizedAllergens);
+  const unknownAllergens = normalizedAllergens.filter(a => !KNOWN_ALLERGENS.includes(a));
+  const price = parseFloat(formPrice.replace(',', '.'));
+  const hasPriceError = formPrice.trim() !== '' && (Number.isNaN(price) || price < 0);
+
+  const toggleAllergen = (allergen: string) => {
+    const next = allergenSet.has(allergen)
+      ? normalizedAllergens.filter(a => a !== allergen)
+      : [...normalizedAllergens, allergen];
+    setAllergensVal(next.join(', '));
+  };
+
+  const handleNormalizeAllergens = () => {
+    setAllergensVal(normalizedAllergens.join(', '));
+  };
 
   const handleSave = async () => {
-    if (!formName.trim()) return;
-    const price = parseFloat(formPrice.replace(',', '.')) || 0;
+    if (saving) return;
+    if (!formName.trim()) {
+      setInlineError('El nombre es obligatorio.');
+      return;
+    }
+    if (hasPriceError) {
+      setInlineError('El precio debe ser un número válido mayor o igual que 0.');
+      return;
+    }
+
+    setInlineError('');
+    setSaving(true);
     const payload = {
       name: formName.trim(),
-      code: formCode,
-      price,
+      code: formCode.trim(),
+      price: Number.isNaN(price) ? 0 : price,
       tags: '',
-      allergens: allergensVal,
+      allergens: normalizedAllergens.join(','),
     };
+
     try {
       if (isEdit && editingItem) {
         const r = await fetch(`${base}/api/admin/items/${editingItem.id}`, {
@@ -87,7 +143,7 @@ function ItemEditorModal({ itemEditor, authHeaders, base, onClose, onSaved, onMs
         });
         const data = await r.json();
         if (data.error) { onMsg(data.error, 'err'); return; }
-        onMsg(' Producto actualizado', 'ok');
+        onMsg('Producto actualizado', 'ok');
       } else {
         const r = await fetch(`${base}/api/admin/categories/${itemEditor.catId}/items`, {
           method: 'POST', headers: authHeaders(),
@@ -95,79 +151,122 @@ function ItemEditorModal({ itemEditor, authHeaders, base, onClose, onSaved, onMs
         });
         const data = await r.json();
         if (data.error) { onMsg(data.error, 'err'); return; }
-        onMsg(' Producto añadido', 'ok');
+        onMsg('Producto añadido', 'ok');
       }
       onSaved(itemEditor.menuId);
     } catch {
       onMsg('Error al guardar', 'err');
+    } finally {
+      setSaving(false);
     }
   };
 
   return (
     <div className="admin-overlay-simple" onClick={onClose}>
-      <div className="admin-modal-small" onClick={e => e.stopPropagation()}>
-        <div className="admin-header">
-          <i className="fas fa-utensils"></i>
-          <h3>{isEdit ? 'Editar producto' : 'Nuevo producto'}</h3>
-          <button className="admin-close" onClick={onClose}>
+      <div className="admin-modal-small item-editor-modal" onClick={e => e.stopPropagation()}>
+        <div className="item-editor-header">
+          <div className="item-editor-title-wrap">
+            <span className="item-editor-title-icon"><i className="fas fa-utensils"></i></span>
+            <div>
+              <h3 className="item-editor-title">{isEdit ? 'Editar producto' : 'Nuevo producto'}</h3>
+              <p className="item-editor-subtitle">Completa el producto y guarda con Ctrl+Enter</p>
+            </div>
+          </div>
+          <button className="item-editor-close" onClick={onClose} type="button" aria-label="Cerrar editor">
             <i className="fas fa-xmark"></i>
           </button>
         </div>
-        <div className="tag-selector-body">
-
-          <label style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, display: 'block', marginBottom: 4 }}>Nombre *</label>
+        <form
+          className="tag-selector-body item-editor-body"
+          onSubmit={(e) => { e.preventDefault(); void handleSave(); }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+              e.preventDefault();
+              void handleSave();
+            }
+          }}
+        >
+          <label className="item-editor-label">Nombre *</label>
           <input
-            type="text" className="menu-input" placeholder="Nombre del producto"
-            value={formName} onChange={e => setFormName(e.target.value)}
-            autoFocus style={{ marginBottom: 10 }}
+            type="text"
+            className="menu-input"
+            placeholder="Nombre del producto"
+            value={formName}
+            onChange={e => setFormName(e.target.value)}
+            autoFocus
           />
 
-          <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
-            <div style={{ flex: 1 }}>
-              <label style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, display: 'block', marginBottom: 4 }}>Código</label>
+          <div className="item-editor-row">
+            <div className="item-editor-col">
+              <label className="item-editor-label">Código</label>
               <input
-                type="text" className="menu-input" placeholder="ej: 01"
-                value={formCode} onChange={e => setFormCode(e.target.value)}
+                type="text"
+                className="menu-input"
+                placeholder="ej: 01"
+                value={formCode}
+                onChange={e => setFormCode(e.target.value)}
               />
             </div>
-            <div style={{ flex: 1 }}>
-              <label style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, display: 'block', marginBottom: 4 }}>Precio (€)</label>
+            <div className="item-editor-col">
+              <label className="item-editor-label">Precio (€)</label>
               <input
-                type="text" className="menu-input" placeholder="ej: 1.50"
-                value={formPrice} onChange={e => setFormPrice(e.target.value)}
+                type="text"
+                className={`menu-input ${hasPriceError ? 'menu-input-error' : ''}`}
+                placeholder="ej: 1.50"
+                value={formPrice}
+                onChange={e => setFormPrice(e.target.value)}
               />
             </div>
           </div>
 
-          <label style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, display: 'block', marginBottom: 4 }}>
-            Alérgenos que contiene <span style={{ fontWeight: 400, color: '#94a3b8' }}>(separados por coma)</span>
+          <label className="item-editor-label">
+            Alérgenos <span className="item-editor-label-muted">(separados por coma)</span>
           </label>
           <input
-            type="text" className="menu-input"
+            type="text"
+            className="menu-input"
             placeholder="ej: huevo, lactosa, gluten"
-            value={allergensVal} onChange={e => setAllergensVal(e.target.value)}
-            style={{ marginBottom: 8 }}
+            value={allergensVal}
+            onChange={e => setAllergensVal(e.target.value)}
+            onBlur={handleNormalizeAllergens}
           />
-          <p style={{ fontSize: '0.65rem', color: '#94a3b8', marginBottom: 12, lineHeight: 1.4 }}>
-            Códigos: huevo, lactosa, gluten, carne, pescado, marisco, miel, frutos_secos, soja, mostaza, apio, cacahuete, sésamo, moluscos, altramuz, sulfitos, nata, queso, mantequilla, harina, pan
+
+          <div className="item-editor-quick-allergens">
+            {QUICK_ALLERGENS.map(a => {
+              const active = allergenSet.has(a);
+              return (
+                <button
+                  key={a}
+                  type="button"
+                  className={`item-editor-quick-pill ${active ? 'active' : ''}`}
+                  onClick={() => toggleAllergen(a)}
+                >
+                  {active ? '✓ ' : ''}{a}
+                </button>
+              );
+            })}
+          </div>
+
+          {unknownAllergens.length > 0 && (
+            <p className="item-editor-hint item-editor-hint-warning">
+              Alérgenos no reconocidos: {unknownAllergens.join(', ')}
+            </p>
+          )}
+
+          <p className="item-editor-hint">
+            Códigos válidos: {KNOWN_ALLERGENS.filter(a => a !== 'sésamo').join(', ')}
           </p>
 
-          <p style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, marginBottom: 8 }}>
-            Etiquetas calculadas automáticamente:
-          </p>
-          <div className="tag-grid" style={{ marginBottom: 16 }}>
+          <p className="item-editor-label">Etiquetas calculadas automáticamente:</p>
+          <div className="item-editor-tags">
             {TAG_CONFIGS.map(t => {
-              let excluded = false;
-              if (t.key === 'vegetarian') excluded = ['carne','pescado','marisco'].some(a => allergenSet.has(a));
-              else if (t.key === 'vegan') excluded = ['carne','pescado','marisco','huevo','lactosa','miel','nata','queso','mantequilla'].some(a => allergenSet.has(a));
-              else if (t.key === 'gluten-free') excluded = ['gluten','harina','pan'].some(a => allergenSet.has(a));
-              else if (t.key === 'without-eggs') excluded = ['huevo'].some(a => allergenSet.has(a));
-              else if (t.key === 'without-lactose') excluded = ['lactosa','nata','queso','mantequilla'].some(a => allergenSet.has(a));
+              const exclusions = ALLERGEN_RULES[t.key] || [];
+              const excluded = exclusions.some(a => allergenSet.has(a));
               const active = !excluded;
               return (
-                <span key={t.key} className={`tag-pill ${active ? 'on' : 'off'}`}
+                <span key={t.key} className={`item-editor-tag-pill ${active ? 'on' : 'off'}`}
                   style={{
-                    opacity: active ? 1 : 0.4, cursor: 'default',
+                    opacity: active ? 1 : 0.4,
                     background: active ? t.bg : '#1e293b',
                     color: active ? t.color : '#64748b',
                     border: active ? `2px solid ${t.color}` : '2px solid #334155',
@@ -180,15 +279,18 @@ function ItemEditorModal({ itemEditor, authHeaders, base, onClose, onSaved, onMs
             })}
           </div>
 
+          {inlineError && <p className="item-editor-error">{inlineError}</p>}
+
           <div className="tag-selector-actions">
-            <button className="menu-cancel-btn" onClick={onClose}>
+            <button className="menu-cancel-btn" onClick={onClose} type="button">
               Cancelar
             </button>
-            <button className="menu-save-btn" onClick={handleSave} disabled={!formName.trim()}>
-              <i className="fas fa-check"></i> {isEdit ? 'Guardar cambios' : 'Crear producto'}
+            <button className="menu-save-btn" type="submit" disabled={!formName.trim() || hasPriceError || saving}>
+              <i className={`fas ${saving ? 'fa-spinner fa-spin' : 'fa-check'}`}></i>
+              {saving ? 'Guardando...' : isEdit ? 'Guardar cambios' : 'Crear producto'}
             </button>
           </div>
-        </div>
+        </form>
       </div>
     </div>
   );
