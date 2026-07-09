@@ -8,12 +8,13 @@ interface Props {
   currentPersonIdx: number;
   activeCat: string;
   searchTerm: string;
+  pendingItemKeys?: Set<string>;
   onSetCategory: (cat: string) => void;
   onSearchChange: (term: string) => void;
   onToggleItem: (catKey: string, itemKey: string) => void;
 }
 
-function MenuGrid({ persons, currentPersonIdx, activeCat, searchTerm, onSetCategory, onSearchChange, onToggleItem }: Props) {
+function MenuGrid({ persons, currentPersonIdx, activeCat, searchTerm, pendingItemKeys, onSetCategory, onSearchChange, onToggleItem }: Props) {
   const person = persons[currentPersonIdx] || persons[0] || null;
   const [activeTags, setActiveTags] = useState<Set<string>>(new Set());
 
@@ -149,6 +150,7 @@ function MenuGrid({ persons, currentPersonIdx, activeCat, searchTerm, onSetCateg
           const name = item.name;
           const ingredients = item.ingredients;
           const selected = !!inOrder;
+          const pending = pendingItemKeys?.has(gi.key!) ?? false;
 
           // Get tags for this item from active menu
           let tags: string[] = [];
@@ -166,9 +168,18 @@ function MenuGrid({ persons, currentPersonIdx, activeCat, searchTerm, onSetCateg
           return (
             <div
               key={gi.key}
-              className={`menu-card${selected ? ' selected' : ''}`}
-              onClick={() => onToggleItem(gi.catKey!, gi.key!)}
+              className={`menu-card${selected ? ' selected' : ''}${pending ? ' pending' : ''}`}
+              onClick={() => {
+                if (pending) return;
+                onToggleItem(gi.catKey!, gi.key!);
+              }}
+              aria-busy={pending}
             >
+              {pending && (
+                <div className="pending-badge" title="Procesando...">
+                  <i className="fas fa-spinner fa-spin"></i>
+                </div>
+              )}
               {code && <span className="code">#{code}</span>}
               <div className="name">{name}</div>
               {tags.length > 0 && (

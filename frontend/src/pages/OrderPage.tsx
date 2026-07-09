@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Person, Toast, WsMessage } from '../types';
 import {
   getKey, getCatLabel, getCatIcon, findItem, setActiveMenu, getActiveMenu,
@@ -42,6 +42,7 @@ function OrderPage() {
   const [showOrderHistory, setShowOrderHistory] = useState(false);
   const [showLiquidacion, setShowLiquidacion] = useState(false);
   const [placingOrder, setPlacingOrder] = useState(false);
+  const [pendingItemOps, setPendingItemOps] = useState<Record<string, boolean>>({});
   const wsRef = useRef<SessionWebSocket | null>(null);
   const prevPersonsRef = useRef<Person[]>([]);
   const sessionValidationTimeRef = useRef<{ code: string; timestamp: number } | null>(null);
@@ -201,6 +202,10 @@ function OrderPage() {
     const person = persons[currentPersonIdx];
     if (!person) return;
 
+    const opKey = `${person.name}::${itemKey}`;
+    if (pendingItemOps[opKey]) return;
+    setPendingItemOps(prev => ({ ...prev, [opKey]: true }));
+
     try {
       if (person.items[itemKey]) {
         await removeItem(sessionCode, person.name, itemKey);
@@ -217,8 +222,14 @@ function OrderPage() {
       console.error('[API] Error toggling item:', error);
       const message = error?.message || 'Error al actualizar el artículo';
       addToast(`✗ ${message}`, 'error');
+    } finally {
+      setPendingItemOps(prev => {
+        const next = { ...prev };
+        delete next[opKey];
+        return next;
+      });
     }
-  }, [sessionCode, myName, persons, currentPersonIdx, addToast]);
+  }, [sessionCode, myName, persons, currentPersonIdx, addToast, pendingItemOps]);
 
   // Change qty
   const changeQty = useCallback(async (itemKey: string, delta: number) => {
@@ -367,6 +378,16 @@ function OrderPage() {
   }, [sessionCode, myName, addToast, placingOrder]);
 
   const sessionUrl = `https://100bocas.cabrasky.net/app?session=${sessionCode}`;
+  const currentPerson = persons[currentPersonIdx] || persons[0] || null;
+  const pendingItemKeys = useMemo(() => {
+    if (!currentPerson) return new Set<string>();
+    const prefix = `${currentPerson.name}::`;
+    return new Set(
+      Object.keys(pendingItemOps)
+        .filter(k => k.startsWith(prefix))
+        .map(k => k.slice(prefix.length))
+    );
+  }, [currentPerson, pendingItemOps]);
 
   if (loading) {
     return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: '#94a3b8' }}>
@@ -382,8 +403,6 @@ function OrderPage() {
       </>
     );
   }
-
-  const currentPerson = persons[currentPersonIdx] || persons[0] || null;
 
   return (
     <div className="app">
@@ -414,6 +433,7 @@ function OrderPage() {
             currentPersonIdx={currentPersonIdx}
             activeCat={activeCat}
             searchTerm={searchTerm}
+            pendingItemKeys={pendingItemKeys}
             onSetCategory={setActiveCat}
             onSearchChange={setSearchTerm}
             onToggleItem={toggleItem}

@@ -376,6 +376,31 @@ header .header-right {
   background: #f0fdf4;
   box-shadow: 0 0 0 2px #86efac;
 }
+.menu-grid .menu-card.pending {
+  cursor: progress;
+  opacity: 0.82;
+  border-color: #93c5fd;
+  box-shadow: 0 0 0 2px rgba(59,130,246,.22);
+}
+.menu-grid .menu-card.pending:hover {
+  transform: none;
+  box-shadow: 0 0 0 2px rgba(59,130,246,.22);
+}
+.menu-card .pending-badge {
+  position: absolute;
+  top: -0.3125rem;
+  left: -0.3125rem;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #2563eb;
+  color: #fff;
+  font-size: 0.6875rem;
+  box-shadow: 0 2px 8px rgba(37,99,235,.35);
+}
 .menu-card .item-code {
   font-size: 0.625rem; color: #94a3b8; font-weight: 700;
   background: #f1f5f9; padding: 0.125rem 0.5rem; border-radius: 0.3125rem;
