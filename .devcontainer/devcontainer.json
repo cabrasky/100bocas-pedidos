@@ -31,7 +31,7 @@
     80,
     8112,
     8113,
-    5432
+    5433
   ],
 
   "postCreateCommand": "python3.11 -m venv .venv && . .venv/bin/activate && pip install --no-cache-dir -r requirements.txt && npm install --prefix frontend",
