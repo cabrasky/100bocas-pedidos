@@ -9,6 +9,11 @@ export default defineConfig({
   },
   server: {
     port: 8113,
+    watch: {
+      // Bind-mounted files in containers can miss FS events; polling keeps HMR reliable.
+      usePolling: true,
+      interval: 100,
+    },
     proxy: {
       '/api': 'http://localhost:8112',
       '/ws': {
