@@ -8,7 +8,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # Copy nginx configuration
-COPY nginx.conf /etc/nginx/sites-available/default
+COPY .devcontainer/nginx.conf /etc/nginx/sites-available/default
 
 # Pre-install pip deps globally (dev container — PEP 668 override is fine)
 COPY requirements.txt /tmp/requirements.txt
