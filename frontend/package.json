@@ -4,7 +4,7 @@
   "version": "1.45.4",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --host",
     "build": "vite build --outDir ../dist/client && vite build --ssr src/entry-server.tsx --outDir ../dist/server",
     "preview": "vite preview"
   },
