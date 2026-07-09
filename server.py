@@ -223,6 +223,36 @@ async def periodic_cleanup():
 
 # ── Schema migrations (Liquibase-style) ─────────────
 MIGRATIONS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "migrations")
+BASE_SCHEMA_CANDIDATES = [
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "init", "init.sql"),
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "k8s", "init", "init.sql"),
+]
+
+
+async def _ensure_base_schema():
+    """Create base tables for fresh databases before additive migrations run."""
+    assert pool
+
+    schema_sql = None
+    schema_path = None
+    for candidate in BASE_SCHEMA_CANDIDATES:
+        if os.path.isfile(candidate):
+            with open(candidate, "r", encoding="utf-8") as f:
+                schema_sql = f.read()
+            schema_path = candidate
+            break
+
+    if not schema_sql:
+        logger.info("[schema] No base schema file found; continuing with migrations only")
+        return
+
+    try:
+        async with pool.acquire() as conn:
+            await conn.execute(schema_sql)
+        logger.info(f"[schema] Base schema ensured from {schema_path}")
+    except Exception as exc:
+        logger.error(f"[schema] Failed applying base schema from {schema_path}: {exc}", exc_info=True)
+        raise
 
 
 async def _ensure_schema_migrations_table():
@@ -241,6 +271,7 @@ async def _ensure_schema_migrations_table():
 async def run_migrations():
     """Apply pending SQL migrations in order."""
     assert pool
+    await _ensure_base_schema()
     await _ensure_schema_migrations_table()
 
     if not os.path.isdir(MIGRATIONS_DIR):
@@ -279,15 +310,24 @@ async def run_migrations():
             line for line in up_sql.split("\n")
             if not line.strip().startswith("--") and not line.strip().startswith("/*")
         )
+        up_clean_upper = up_clean.upper()
+        has_explicit_tx = "BEGIN;" in up_clean_upper or "COMMIT;" in up_clean_upper
 
         try:
             async with pool.acquire() as conn:
-                async with conn.transaction():
+                if has_explicit_tx:
                     await conn.execute(up_clean)
                     await conn.execute(
                         "INSERT INTO schema_migrations (version, filename, description) VALUES ($1, $2, $3)",
                         version, fname, desc,
                     )
+                else:
+                    async with conn.transaction():
+                        await conn.execute(up_clean)
+                        await conn.execute(
+                            "INSERT INTO schema_migrations (version, filename, description) VALUES ($1, $2, $3)",
+                            version, fname, desc,
+                        )
             logger.info(f"[migrate] ✓ {fname} — {desc or version}")
         except Exception as e:
             logger.error(f"[migrate] ✗ {fname} FAILED: {e}", exc_info=True)
