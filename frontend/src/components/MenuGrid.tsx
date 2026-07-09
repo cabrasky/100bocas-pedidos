@@ -11,10 +11,11 @@ interface Props {
   pendingItemKeys?: Set<string>;
   onSetCategory: (cat: string) => void;
   onSearchChange: (term: string) => void;
-  onToggleItem: (catKey: string, itemKey: string) => void;
+  onAdjustItem: (catKey: string, itemKey: string, delta: number) => void;
+  onRemoveItem: (itemKey: string) => void;
 }
 
-function MenuGrid({ persons, currentPersonIdx, activeCat, searchTerm, pendingItemKeys, onSetCategory, onSearchChange, onToggleItem }: Props) {
+function MenuGrid({ persons, currentPersonIdx, activeCat, searchTerm, pendingItemKeys, onSetCategory, onSearchChange, onAdjustItem, onRemoveItem }: Props) {
   const person = persons[currentPersonIdx] || persons[0] || null;
   const [activeTags, setActiveTags] = useState<Set<string>>(new Set());
 
@@ -171,7 +172,7 @@ function MenuGrid({ persons, currentPersonIdx, activeCat, searchTerm, pendingIte
               className={`menu-card${selected ? ' selected' : ''}${pending ? ' pending' : ''}`}
               onClick={() => {
                 if (pending) return;
-                onToggleItem(gi.catKey!, gi.key!);
+                onAdjustItem(gi.catKey!, gi.key!, 1);
               }}
               aria-busy={pending}
             >
@@ -200,6 +201,34 @@ function MenuGrid({ persons, currentPersonIdx, activeCat, searchTerm, pendingIte
               {ingredients && <div className="ingredients">{ingredients}</div>}
               {price && <div className="price">{price}</div>}
               {inOrder && <div className="added-badge">{inOrder.qty}</div>}
+              {selected && (
+                <div className="qty-controls" onClick={e => e.stopPropagation()}>
+                  <button
+                    type="button"
+                    title="Quitar 1"
+                    disabled={pending || inOrder.qty <= 0}
+                    onClick={() => onAdjustItem(gi.catKey!, gi.key!, -1)}
+                  >
+                    <i className="fas fa-minus"></i>
+                  </button>
+                  <button
+                    type="button"
+                    title="Añadir 1"
+                    disabled={pending}
+                    onClick={() => onAdjustItem(gi.catKey!, gi.key!, 1)}
+                  >
+                    <i className="fas fa-plus"></i>
+                  </button>
+                  <button
+                    type="button"
+                    title="Quitar todo"
+                    disabled={pending}
+                    onClick={() => onRemoveItem(gi.key!)}
+                  >
+                    <i className="fas fa-xmark"></i>
+                  </button>
+                </div>
+              )}
             </div>
           );
         })}

@@ -196,8 +196,9 @@ function OrderPage() {
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Toggle item
-  const toggleItem = useCallback(async (catKey: string, itemKey: string) => {
+  // Adjust item quantity from menu cards
+  const adjustItemQty = useCallback(async (catKey: string, itemKey: string, delta: number) => {
+    if (!delta) return;
     if (!sessionCode || !myName) return;
     const person = persons[currentPersonIdx];
     if (!person) return;
@@ -207,19 +208,42 @@ function OrderPage() {
     setPendingItemOps(prev => ({ ...prev, [opKey]: true }));
 
     try {
-      if (person.items[itemKey]) {
-        await removeItem(sessionCode, person.name, itemKey);
+      const currentQty = person.items[itemKey]?.qty || 0;
+      const nextQty = currentQty + delta;
+
+      if (nextQty <= 0) {
+        if (currentQty > 0) {
+          await removeItem(sessionCode, person.name, itemKey);
+        }
       } else {
+        const existing = person.items[itemKey];
+        if (existing) {
+          await upsertItem(
+            sessionCode,
+            person.name,
+            itemKey,
+            existing.item.name,
+            existing.item.code || '',
+            existing.category,
+            nextQty
+          );
+          return;
+        }
+
         const found = findItem(itemKey);
         if (!found) return;
         await upsertItem(
-          sessionCode, person.name,
-          itemKey, found.item.name, found.item.code || '',
-          found.category, 1
+          sessionCode,
+          person.name,
+          itemKey,
+          found.item.name,
+          found.item.code || '',
+          catKey || found.category,
+          nextQty
         );
       }
     } catch (error: any) {
-      console.error('[API] Error toggling item:', error);
+      console.error('[API] Error adjusting item quantity:', error);
       const message = error?.message || 'Error al actualizar el artículo';
       addToast(`✗ ${message}`, 'error');
     } finally {
@@ -436,7 +460,8 @@ function OrderPage() {
             pendingItemKeys={pendingItemKeys}
             onSetCategory={setActiveCat}
             onSearchChange={setSearchTerm}
-            onToggleItem={toggleItem}
+            onAdjustItem={adjustItemQty}
+            onRemoveItem={removeItemAction}
           />
         </div>
 
