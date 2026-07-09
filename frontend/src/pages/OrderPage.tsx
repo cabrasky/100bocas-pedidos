@@ -47,6 +47,32 @@ function OrderPage() {
   const prevPersonsRef = useRef<Person[]>([]);
   const sessionValidationTimeRef = useRef<{ code: string; timestamp: number } | null>(null);
 
+  const applySessionPeople = useCallback((nextPeople?: Person[]) => {
+    if (!nextPeople) return;
+    const previousPeople = prevPersonsRef.current;
+    setPersons(nextPeople);
+    setCurrentPersonIdx(prevIdx => {
+      if (nextPeople.length === 0) return 0;
+
+      const prevSelectedName = previousPeople[prevIdx]?.name;
+      if (prevSelectedName) {
+        const preservedIdx = nextPeople.findIndex(p => p.name === prevSelectedName);
+        if (preservedIdx >= 0) return preservedIdx;
+      }
+
+      if (myName) {
+        const myIdx = nextPeople.findIndex(p => p.name === myName);
+        if (myIdx >= 0) return myIdx;
+      }
+
+      return Math.min(prevIdx, nextPeople.length - 1);
+    });
+  }, [myName]);
+
+  useEffect(() => {
+    prevPersonsRef.current = persons;
+  }, [persons]);
+
   const addToast = useCallback((message: string, type: Toast['type'], duration = 3500) => {
     const id = ++toastId;
     setToasts(prev => [...prev, { id, message, type }]);
@@ -83,12 +109,12 @@ function OrderPage() {
   // Sync persons from WS message
   const syncPersons = useCallback((msg: WsMessage) => {
     if (msg.people) {
-      setPersons(msg.people);
+      applySessionPeople(msg.people);
       if (myName && !msg.people.find(p => p.name === myName)) {
         addPerson(sessionCode, myName);
       }
     }
-  }, [myName, sessionCode]);
+  }, [myName, sessionCode, applySessionPeople]);
 
   // Handle WS message
   const onWsMessage = useCallback((msg: WsMessage) => {
@@ -213,12 +239,13 @@ function OrderPage() {
 
       if (nextQty <= 0) {
         if (currentQty > 0) {
-          await removeItem(sessionCode, person.name, itemKey);
+          const data = await removeItem(sessionCode, person.name, itemKey);
+          applySessionPeople(data?.people);
         }
       } else {
         const existing = person.items[itemKey];
         if (existing) {
-          await upsertItem(
+          const data = await upsertItem(
             sessionCode,
             person.name,
             itemKey,
@@ -227,12 +254,13 @@ function OrderPage() {
             existing.category,
             nextQty
           );
+          applySessionPeople(data?.people);
           return;
         }
 
         const found = findItem(itemKey);
         if (!found) return;
-        await upsertItem(
+        const data = await upsertItem(
           sessionCode,
           person.name,
           itemKey,
@@ -241,6 +269,7 @@ function OrderPage() {
           catKey || found.category,
           nextQty
         );
+        applySessionPeople(data?.people);
       }
     } catch (error: any) {
       console.error('[API] Error adjusting item quantity:', error);
@@ -253,7 +282,7 @@ function OrderPage() {
         return next;
       });
     }
-  }, [sessionCode, myName, persons, currentPersonIdx, addToast, pendingItemOps]);
+  }, [sessionCode, myName, persons, currentPersonIdx, addToast, pendingItemOps, applySessionPeople]);
 
   // Change qty
   const changeQty = useCallback(async (itemKey: string, delta: number) => {
@@ -264,21 +293,23 @@ function OrderPage() {
     try {
       const newQty = person.items[itemKey].qty + delta;
       if (newQty <= 0) {
-        await removeItem(sessionCode, person.name, itemKey);
+        const data = await removeItem(sessionCode, person.name, itemKey);
+        applySessionPeople(data?.people);
       } else {
         const oi = person.items[itemKey];
-        await upsertItem(
+        const data = await upsertItem(
           sessionCode, person.name,
           itemKey, oi.item.name, oi.item.code || '',
           oi.category, newQty
         );
+        applySessionPeople(data?.people);
       }
     } catch (error: any) {
       console.error('[API] Error changing quantity:', error);
       const message = error?.message || 'Error al cambiar la cantidad';
       addToast(`✗ ${message}`, 'error');
     }
-  }, [sessionCode, myName, persons, currentPersonIdx, addToast]);
+  }, [sessionCode, myName, persons, currentPersonIdx, addToast, applySessionPeople]);
 
   // Remove item
   const removeItemAction = useCallback(async (itemKey: string) => {
@@ -286,13 +317,14 @@ function OrderPage() {
     const person = persons[currentPersonIdx];
     if (!person) return;
     try {
-      await removeItem(sessionCode, person.name, itemKey);
+      const data = await removeItem(sessionCode, person.name, itemKey);
+      applySessionPeople(data?.people);
     } catch (error: any) {
       console.error('[API] Error removing item:', error);
       const message = error?.message || 'Error al quitar el artículo';
       addToast(`✗ ${message}`, 'error');
     }
-  }, [sessionCode, myName, persons, currentPersonIdx, addToast]);
+  }, [sessionCode, myName, persons, currentPersonIdx, addToast, applySessionPeople]);
 
   // Clear person
   const handleClear = useCallback(async () => {
@@ -300,13 +332,14 @@ function OrderPage() {
     const person = persons[currentPersonIdx];
     if (!person || Object.keys(person.items).length === 0) return;
     try {
-      await clearPerson(sessionCode, person.name);
+      const data = await clearPerson(sessionCode, person.name);
+      applySessionPeople(data?.people);
     } catch (error: any) {
       console.error('[API] Error clearing person:', error);
       const message = error?.message || 'Error al vaciar el pedido';
       addToast(`✗ ${message}`, 'error');
     }
-  }, [sessionCode, myName, persons, currentPersonIdx, addToast]);
+  }, [sessionCode, myName, persons, currentPersonIdx, addToast, applySessionPeople]);
 
   // Add person
   const handleAddPerson = useCallback(async () => {
