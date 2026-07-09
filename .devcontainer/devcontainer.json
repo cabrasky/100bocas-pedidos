@@ -1,0 +1,40 @@
+{
+  "name": "100Bocas Dev Environment",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "devcontainer",
+  "workspaceFolder": "/workspace",
+  "shutdownAction": "stopCompose",
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "ms-vscode.vscode-typescript-next",
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "charliermarsh.ruff",
+        "eamodio.gitlens",
+        "ms-ossdata.vscode-pgsql"
+      ],
+      "settings": {
+        "terminal.integrated.shell.linux": "/bin/bash",
+        "python.defaultInterpreterPath": "/workspace/.venv/bin/python",
+        "[python]": {
+          "editor.defaultFormatter": "charliermarsh.ruff"
+        }
+      }
+    }
+  },
+
+  "forwardPorts": [
+    80,
+    8112,
+    8113,
+    5432
+  ],
+
+  "postCreateCommand": "python3.11 -m venv .venv && . .venv/bin/activate && pip install --no-cache-dir -r requirements.txt && npm install --prefix frontend",
+
+  "remoteUser": "root"
+}
