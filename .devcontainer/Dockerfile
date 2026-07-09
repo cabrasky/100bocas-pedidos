@@ -10,6 +10,10 @@ RUN apt-get update && \
 # Copy nginx configuration
 COPY nginx.conf /etc/nginx/sites-available/default
 
+# Pre-install pip deps globally (dev container — PEP 668 override is fine)
+COPY requirements.txt /tmp/requirements.txt
+RUN pip3 install --break-system-packages --no-cache-dir -r /tmp/requirements.txt
+
 # Configure environment
 ENV PYTHONUNBUFFERED=1
 ENV BOCAS_DB=postgresql://bocas:bocas_pass@db:5432/100bocas

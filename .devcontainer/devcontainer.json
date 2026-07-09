@@ -34,7 +34,7 @@
     5433
   ],
 
-  "postCreateCommand": "python3.11 -m venv .venv && . .venv/bin/activate && pip install --no-cache-dir -r requirements.txt && npm install --prefix frontend",
+  "postCreateCommand": "python3.11 -m venv .venv && . .venv/bin/activate && pip install --no-cache-dir -r requirements.txt && npm install --prefix frontend && echo 'source /workspace/.venv/bin/activate' >> ~/.bashrc",
 
   "remoteUser": "root"
 }
