@@ -22,7 +22,7 @@ export interface ApiMenuData {
 // ── Admin Menu ────────────────────────────────────
 export interface MenuConfig {
   id: number; name: string; slug: string; description: string;
-  is_active: boolean; created_at: string | null;
+  is_active: boolean; auto_activate: boolean; created_at: string | null;
 }
 
 export interface MenuDetail {

@@ -55,12 +55,29 @@ function MenuGrid({ persons, currentPersonIdx, activeCat, searchTerm, pendingIte
   const gridItems = useMemo(() => {
     const items: Array<{ type: 'header' | 'card'; catKey?: string; item?: any; key?: string }> = [];
     const q = searchTerm.toLowerCase();
+    const active = getActiveMenu();
     
     for (const catKey of filteredCats) {
-      const cat = MENU[catKey];
-      if (!cat?.items) continue;
+      // Try dynamic menu items first, fall back to static MENU
+      let catItems: Array<{ code?: string; name: string; price?: any; ingredients?: string }> | undefined;
+      if (active) {
+        const dynCat = active.categories.find(c => c.key === catKey);
+        if (dynCat?.items) {
+          catItems = dynCat.items.map(i => ({
+            code: i.code || undefined,
+            name: i.name,
+            price: i.price,
+            ingredients: i.ingredients || undefined,
+          }));
+        }
+      }
+      if (!catItems) {
+        const staticCat = MENU[catKey];
+        if (!staticCat?.items) continue;
+        catItems = staticCat.items;
+      }
       
-      const filtered = cat.items.filter(i => {
+      const filtered = catItems.filter(i => {
         // Text search
         if (q && !(i.code || '').includes(q) && !i.name.toLowerCase().includes(q)) return false;
         // Tag filter

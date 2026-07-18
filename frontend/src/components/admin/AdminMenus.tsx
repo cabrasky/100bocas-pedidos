@@ -269,6 +269,88 @@ function ItemEditorModal({ itemEditor, onClose, onSaved, onMsg }: ItemEditorModa
   );
 }
 
+/* ── Menu Status Bar (auto/forced indicator) ── */
+interface StatusBarProps {
+  onRefresh: () => void;
+  onMsg: (msg: string, type: 'ok' | 'err') => void;
+}
+
+function MenuStatusBar({ onRefresh, onMsg }: StatusBarProps) {
+  const [status, setStatus] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await menuService.getStatus();
+      setStatus(data);
+    } catch { /* ignore */ }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleForce = async (menuId: number) => {
+    try {
+      const r = await menuService.force(menuId);
+      onMsg(` "${r.name}" forzada`, 'ok');
+      load();
+      onRefresh();
+    } catch { onMsg('Error al forzar', 'err'); }
+  };
+
+  const handleUnforce = async () => {
+    try {
+      await menuService.unforce();
+      onMsg(' Vuelta a auto', 'ok');
+      load();
+      onRefresh();
+    } catch { onMsg('Error', 'err'); }
+  };
+
+  if (loading) return null;
+  if (!status) return null;
+
+  const isForced = status.mode === 'forced';
+
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+      padding: '10px 14px', borderRadius: 10, marginBottom: 12,
+      background: isForced ? '#1c1917' : '#0f172a',
+      border: isForced ? '1px solid #f59e0b' : '1px solid #334155',
+    }}>
+      <span style={{
+        fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6,
+        background: isForced ? '#f59e0b' : '#10b981',
+        color: isForced ? '#1c1917' : '#022c22',
+      }}>
+        <i className={`fas ${isForced ? 'fa-hand' : 'fa-robot'}`}></i>{' '}
+        {isForced ? 'FORZADA' : 'AUTO'}
+      </span>
+      <span style={{ fontSize: 13, color: '#e2e8f0', fontWeight: 600 }}>
+        {status.active_menu_name || '—'}
+      </span>
+      <span style={{ fontSize: 11, color: '#94a3b8' }}>
+        {isForced
+          ? `(forzada manualmente)`
+          : `(hoy es ${status.today})`
+        }
+      </span>
+      {isForced && (
+        <button onClick={handleUnforce}
+          style={{
+            marginLeft: 'auto', background: '#1e293b', border: '1px solid #475569',
+            borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 600,
+            color: '#f59e0b', cursor: 'pointer', fontFamily: 'inherit',
+          }}>
+          <i className="fas fa-undo"></i> Volver a auto
+        </button>
+      )}
+    </div>
+  );
+}
+
 function AdminMenus(_props: Props) {
   const [menus, setMenus] = useState<MenuConfig[]>([]);
   const [loading, setLoading] = useState(true);
@@ -473,6 +555,9 @@ function AdminMenus(_props: Props) {
                 <input type="file" id="import-file-input" accept=".json" style={{ display: 'none' }} onChange={handleImportFile} />
               </span>
             </h3>
+
+            {/* ── Auto/Force Status Bar ── */}
+            <MenuStatusBar onRefresh={load} onMsg={showMsg} />
             {loading ? (
               <div className="admin-loading"><i className="fas fa-spinner fa-spin"></i> Cargando...</div>
             ) : menus.length === 0 ? (
