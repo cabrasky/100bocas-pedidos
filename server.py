@@ -886,10 +886,39 @@ async def websocket_endpoint(ws: WebSocket, code: str):
 
 
 # ── Menu API ───────────────────────────────────────
-async def _get_active_menu(conn) -> dict | None:
-    """Fetch the active menu config with categories and items."""
+async def _get_active_menu(conn, force_menu_id: int | None = None) -> dict | None:
+    """Fetch the active menu config with categories and items.
+    
+    Priority:
+    1. forced_menu_id from app_config → return that menu (manual override)
+    2. auto_activate based on day_of_week → return matching menu from menu_schedules
+    """
+    menu_id = force_menu_id
+    if menu_id is None:
+        # Auto: find menu by today's day_of_week
+        today = datetime.now().isoweekday()  # Mon=1, Sun=7
+        # Convert to 0=Sun..6=Sat for DB
+        dow = today % 7  # Mon(1)→1, Sun(7)→0
+        row = await conn.fetchrow("""
+            SELECT mc.id FROM menu_configs mc
+            JOIN menu_schedules ms ON ms.menu_id = mc.id
+            WHERE ms.day_of_week = $1 AND mc.auto_activate = true
+            ORDER BY mc.id LIMIT 1
+        """, dow)
+        if row:
+            menu_id = row["id"]
+    
+    if menu_id is None:
+        # Fallback: any active or first menu
+        row = await conn.fetchrow(
+            "SELECT id FROM menu_configs ORDER BY is_active DESC, id LIMIT 1"
+        )
+        if not row:
+            return None
+        menu_id = row["id"]
+    
     row = await conn.fetchrow(
-        "SELECT id, name, slug, description FROM menu_configs WHERE is_active = true LIMIT 1"
+        "SELECT id, name, slug, description FROM menu_configs WHERE id = $1", menu_id
     )
     if not row:
         return None
@@ -925,10 +954,15 @@ async def _get_active_menu(conn) -> dict | None:
 
 @app.get("/api/menu/active")
 async def get_active_menu():
-    """Public: return the currently active menu config."""
+    """Public: return the currently active menu config (auto or forced)."""
     assert pool
     async with pool.acquire() as conn:
-        menu = await _get_active_menu(conn)
+        # Check if there's a forced menu
+        forced_row = await conn.fetchrow(
+            "SELECT value FROM app_config WHERE key = 'forced_menu_id' AND value != ''"
+        )
+        forced_id = int(forced_row["value"]) if forced_row else None
+        menu = await _get_active_menu(conn, force_menu_id=forced_id)
     if not menu:
         return JSONResponse({"error": "No active menu configured"}, status_code=404)
     return menu
@@ -944,11 +978,12 @@ async def admin_list_menus(request: Request):
     assert pool
     async with pool.acquire() as conn:
         rows = await conn.fetch(
-            "SELECT id, name, slug, description, is_active, created_at FROM menu_configs ORDER BY id"
+            "SELECT id, name, slug, description, is_active, auto_activate, created_at FROM menu_configs ORDER BY id"
         )
     return [{
         "id": r["id"], "name": r["name"], "slug": r["slug"],
         "description": r["description"], "is_active": r["is_active"],
+        "auto_activate": r["auto_activate"],
         "created_at": r["created_at"].isoformat() if r["created_at"] else None,
     } for r in rows]
 
@@ -1044,6 +1079,90 @@ async def admin_activate_menu(request: Request, menu_id: int):
             return JSONResponse({"error": "Menu not found"}, status_code=404)
         await conn.execute("UPDATE menu_configs SET is_active = (id = $1)", menu_id)
     return {"status": "ok", "menu_id": menu_id}
+
+
+@app.get("/api/admin/menu-status")
+async def admin_menu_status(request: Request):
+    """Get current menu activation status (auto vs forced)."""
+    auth_error = _admin_required(request)
+    if auth_error:
+        return auth_error
+    assert pool
+    async with pool.acquire() as conn:
+        # Check forced
+        forced_row = await conn.fetchrow(
+            "SELECT value FROM app_config WHERE key = 'forced_menu_id' AND value != ''"
+        )
+        forced_id = int(forced_row["value"]) if forced_row else None
+        forced_menu = None
+        if forced_id:
+            forced_menu = await conn.fetchrow(
+                "SELECT id, name, slug FROM menu_configs WHERE id = $1", forced_id
+            )
+        
+        # Get auto-activated menu for today
+        today_dow = datetime.now().isoweekday() % 7
+        auto_row = await conn.fetchrow("""
+            SELECT mc.id, mc.name, mc.slug FROM menu_configs mc
+            JOIN menu_schedules ms ON ms.menu_id = mc.id
+            WHERE ms.day_of_week = $1 AND mc.auto_activate = true
+            LIMIT 1
+        """, today_dow)
+        
+        # Get the actual active menu
+        active_menu = await _get_active_menu(conn, force_menu_id=forced_id)
+        
+        day_names = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
+        return {
+            "mode": "forced" if forced_id else "auto",
+            "forced_menu": {
+                "id": forced_menu["id"],
+                "name": forced_menu["name"],
+                "slug": forced_menu["slug"],
+            } if forced_menu else None,
+            "auto_menu_today": {
+                "id": auto_row["id"],
+                "name": auto_row["name"],
+                "slug": auto_row["slug"],
+            } if auto_row else None,
+            "today": day_names[today_dow],
+            "active_menu_id": active_menu["id"] if active_menu else None,
+            "active_menu_name": active_menu["name"] if active_menu else None,
+        }
+
+
+@app.post("/api/admin/menus/force/{menu_id}")
+async def admin_force_menu(request: Request, menu_id: int):
+    """Force a specific menu to be active (manual override)."""
+    auth_error = _admin_required(request)
+    if auth_error:
+        return auth_error
+    assert pool
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT id, name FROM menu_configs WHERE id = $1", menu_id)
+        if not row:
+            return JSONResponse({"error": "Menu not found"}, status_code=404)
+        await conn.execute(
+            "INSERT INTO app_config (key, value) VALUES ('forced_menu_id', $1) "
+            "ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
+            str(menu_id)
+        )
+    return {"status": "ok", "menu_id": menu_id, "name": row["name"], "mode": "forced"}
+
+
+@app.post("/api/admin/menus/unforce")
+async def admin_unforce_menu(request: Request):
+    """Clear the forced menu override — back to auto by day of week."""
+    auth_error = _admin_required(request)
+    if auth_error:
+        return auth_error
+    assert pool
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO app_config (key, value) VALUES ('forced_menu_id', '') "
+            "ON CONFLICT (key) DO UPDATE SET value = ''"
+        )
+    return {"status": "ok", "mode": "auto"}
 
 
 

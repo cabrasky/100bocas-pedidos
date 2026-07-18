@@ -15,6 +15,24 @@ spec:
       labels:
         app: bocas-frontend
     spec:
+      # Evacuate pods quickly when a node goes offline (default is 300s)
+      tolerations:
+      - key: "node.kubernetes.io/unreachable"
+        operator: "Exists"
+        effect: "NoExecute"
+        tolerationSeconds: 30
+      - key: "node.kubernetes.io/not-ready"
+        operator: "Exists"
+        effect: "NoExecute"
+        tolerationSeconds: 30
+      # Spread replicas across different nodes for resilience
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: DoNotSchedule
+        labelSelector:
+          matchLabels:
+            app: bocas-frontend
       initContainers:
       - name: wait-for-backend
         image: busybox:1.36

@@ -57,6 +57,21 @@ export class MenuService {
     return apiClient.get("/api/menu/active");
   }
 
+  /** Get current menu activation status */
+  async getStatus(): Promise<{ mode: string; forced_menu: any; auto_menu_today: any; today: string; active_menu_id: number; active_menu_name: string }> {
+    return apiClient.get("/api/admin/menu-status");
+  }
+
+  /** Force a specific menu */
+  async force(menuId: number): Promise<{ status: string; menu_id: number; name: string; mode: string }> {
+    return apiClient.post(`/api/admin/menus/force/${menuId}`);
+  }
+
+  /** Clear force override (back to auto) */
+  async unforce(): Promise<{ status: string; mode: string }> {
+    return apiClient.post("/api/admin/menus/unforce");
+  }
+
   // ── Schedules ─────────────────────────────────
   /** Toggle schedule day for a menu */
   async toggleSchedule(menuId: number, day: number, active: boolean): Promise<{ status: string }> {
